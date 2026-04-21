@@ -35,9 +35,9 @@ Rol:
 Mapeo MQTT -> NGSI-LD:
 - Topic de ingesta del dominio anclajes: `/bicicoruna/+/attrs`.
 - El `+` representa el identificador de estacion/sensor (por ejemplo `estacion_001`).
-- Payload JSON esperado: `{ "numBikesAvailable": 12, "ts": "2026-04-21T10:15:00Z" }`.
+- Payload JSON esperado: `{ "num_bikes_available": 12, "ts": "2026-04-21T10:15:00Z" }`.
 - Mapeo principal:
-  - `numBikesAvailable` (MQTT JSON) -> atributo `numBikesAvailable` de la entidad `station_status` en Orion-LD.
+  - `num_bikes_available` (MQTT JSON) -> atributo `num_bikes_available` de la entidad `station_status` en Orion-LD.
 - Operacion resultante en Orion-LD: `PATCH /ngsi-ld/v1/entities/{urn_station_status}/attrs`.
 
 ### 1.3 QuantumLeap + CrateDB
@@ -154,7 +154,7 @@ flowchart LR
 - Origen: sensor de anclaje.
 - Destino: broker Mosquitto.
 - Protocolo: MQTT.
-- Formato: JSON (`{"numBikesAvailable": 12, "ts": "2026-04-21T10:15:00Z"}`).
+- Formato: JSON (`{"num_bikes_available": 12, "ts": "2026-04-21T10:15:00Z"}`).
 - Topic: `/bicicoruna/estacion_001/attrs` (matching `/bicicoruna/+/attrs`).
 
 2. IoT Agent consume topic y aplica mapping:
@@ -162,7 +162,7 @@ flowchart LR
 - Destino: IoT Agent MQTT JSON.
 - Protocolo: MQTT interno.
 - Formato: JSON.
-- Transformacion: `numBikesAvailable` -> atributo NGSI-LD homonimo en `station_status`.
+- Transformacion: `num_bikes_available` -> atributo NGSI-LD homonimo en `station_status`.
 
 3. IoT Agent actualiza Orion-LD:
 - Origen: IoT Agent.
@@ -176,7 +176,7 @@ flowchart LR
 
 1. Cambio de estado en Orion:
 - Origen: Orion-LD (entidad `station_status`).
-- Trigger: cambio en watched attributes (ej.: `numBikesAvailable`, `is_renting`, `last_reported`).
+- Trigger: cambio en watched attributes (ej.: `num_bikes_available`, `is_renting`, `last_reported`).
 
 2. Notificacion a QuantumLeap:
 - Origen: Orion-LD.
@@ -321,15 +321,20 @@ services:
     ports:
       - "1883:1883"
       - "9001:9001"
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
     restart: unless-stopped
 
   iot-agent-mqtt:
     image: fiware/iotagent-json:3.4.0
     container_name: iot-agent-mqtt
     depends_on:
-      - mongodb
-      - orion-ld
-      - mosquitto
+      mongodb:
+        condition: service_started
+      orion-ld:
+        condition: service_healthy
+      mosquitto:
+        condition: service_started
     networks:
       - fiware_net
     ports:
@@ -342,6 +347,7 @@ services:
       - IOTA_HTTP_PORT=7896
       - IOTA_MONGO_HOST=mongodb
       - IOTA_MONGO_PORT=27017
+      - IOTA_REGISTRY_TYPE=mongodb
       - IOTA_MONGO_DB=iotagentjson
       - IOTA_DEFAULT_RESOURCE=/iot/json
       - IOTA_DEFAULT_TRANSPORT=MQTT
@@ -457,6 +463,14 @@ services:
     restart: unless-stopped
 ```
 
+Archivo de configuracion requerido para Mosquitto 2.0:
+
+```conf
+# ./mosquitto/mosquitto.conf
+listener 1883
+allow_anonymous true
+```
+
 Archivo de provisioning recomendado para datasource CrateDB:
 
 ```yaml
@@ -514,8 +528,8 @@ Endpoint:
       "timezone": "Europe/Madrid",
       "attributes": [
         {
-          "object_id": "numBikesAvailable",
-          "name": "numBikesAvailable",
+          "object_id": "num_bikes_available",
+          "name": "num_bikes_available",
           "type": "Number"
         }
       ],
@@ -542,7 +556,7 @@ Endpoint:
 
 Topico operativo esperado por el IoT Agent:
 - `/bicicoruna/+/attrs`
-- Ejemplo publicacion: `/bicicoruna/estacion_001/attrs` con payload `{"numBikesAvailable":10}`.
+- Ejemplo publicacion: `/bicicoruna/estacion_001/attrs` con payload `{"num_bikes_available":10}`.
 
 ---
 
@@ -560,7 +574,7 @@ Topico operativo esperado por el IoT Agent:
     }
   ],
   "watchedAttributes": [
-    "numBikesAvailable",
+    "num_bikes_available",
     "num_docks_available",
     "is_renting",
     "is_returning",
@@ -568,7 +582,7 @@ Topico operativo esperado por el IoT Agent:
   ],
   "notification": {
     "attributes": [
-      "numBikesAvailable",
+      "num_bikes_available",
       "num_docks_available",
       "is_renting",
       "is_returning",
