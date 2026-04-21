@@ -39,15 +39,15 @@ graph TD
   DEV[Device]
   WEA[WeatherObserved]
 
-  SS -->|refStation (hub relation)| SI
-  FB -->|refStation (hub relation)| SI
-  MSP -->|refGBFSStation (hub relation)| SI
-  TR -->|refOrigin (hub relation)| SI
-  TR -->|refDestination (hub relation)| SI
-  TR -->|refVehicle (hub relation)| DEV
-  WEA -->|refDevice (official)| DEV
-  SI -->|refWeather (hub relation)| WEA
-  DEV -->|refStation (hub relation)| SI
+  SS -->|refStation hub relation| SI
+  FB -->|refStation hub relation| SI
+  MSP -->|refGBFSStation hub relation| SI
+  TR -->|refOrigin hub relation| SI
+  TR -->|refDestination hub relation| SI
+  TR -->|refVehicle hub relation| DEV
+  WEA -->|refDevice official| DEV
+  SI -->|refWeather hub relation| WEA
+  DEV -->|refStation hub relation| SI
 ```
 
 ## Common notes for GBFS feeds
