@@ -107,20 +107,20 @@ Rol:
 ```mermaid
 flowchart LR
   subgraph IoT[Flujo IoT]
-    S1[Sensor de anclaje MQTT\n/bicicoruna/{stationId}/attrs\nJSON]
-    MQ[(Mosquitto\nMQTT Broker:1883)]
-    IA[IoT Agent MQTT JSON\nHTTP 4041 / MQTT 7896]
-    ORI[Orion-LD\nNGSI-LD 1026]
+    S1["Sensor de anclaje MQTT\n/bicicoruna/{stationId}/attrs\nJSON"]
+    MQ(["Mosquitto\nMQTT Broker:1883"])
+    IA["IoT Agent MQTT JSON\nHTTP 4041 / MQTT 7896"]
+    ORI["Orion-LD\nNGSI-LD 1026"]
     S1 -- MQTT/JSON --> MQ
     MQ -- MQTT topic subscription --> IA
     IA -- HTTP PATCH NGSI-LD --> ORI
   end
 
   subgraph Analytics[Flujo analitico e historico]
-    SUB[Subscription station_status\nwatchedAttributes]
-    QL[QuantumLeap\n/v2/notify 8668]
-    CR[(CrateDB\n4200/5432)]
-    GRA[Grafana\n3000]
+    SUB["Subscription station_status\nwatchedAttributes"]
+    QL["QuantumLeap\n/v2/notify 8668"]
+    CR(["CrateDB\n4200/5432"])
+    GRA["Grafana\n3000"]
     ORI -- notify HTTP JSON --> QL
     QL -- INSERT timeseries --> CR
     GRA -- SQL datasource --> CR
@@ -128,10 +128,10 @@ flowchart LR
   end
 
   subgraph UserFlow[Flujo usuario y IA]
-    FE[Frontend estatico\nHTML+JS+Tailwind+Leaflet+ThreeJS+ChartJS\n8080]
-    API[FastAPI backend\n8000]
-    ML[Modelo ML\nserving predicciones]
-    LLM[LM Studio + Gemma\nhttp://host.docker.internal:1234/v1]
+    FE["Frontend estatico\nHTML+JS+Tailwind+Leaflet+ThreeJS+ChartJS\n8080"]
+    API["FastAPI backend\n8000"]
+    ML["Modelo ML\nserving predicciones"]
+    LLM["LM Studio + Gemma\nhttp://host.docker.internal:1234/v1"]
     FE -- HTTPS/HTTP JSON --> API
     API -- NGSI-LD query --> ORI
     API -- feature extraction --> CR
@@ -140,7 +140,7 @@ flowchart LR
     API -- JSON respuesta --> FE
   end
 
-  MDB[(MongoDB\n27017)]
+  MDB(["MongoDB\n27017"])
   ORI -- persistencia interna --> MDB
 ```
 
