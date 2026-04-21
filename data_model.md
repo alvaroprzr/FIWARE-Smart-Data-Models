@@ -110,6 +110,12 @@ Official description: station master data for a bike-sharing station, including 
 | data.stations[].vehicle_type_capacity | Property | Static | Per vehicle type docking points installed |
 | refWeather | Relationship | Dynamic | Hub relation to the latest WeatherObserved covering the station area |
 
+Integration note for correction and ingestion in the hub:
+
+- `GBFSStation` (`station_information`) is modeled as one feed entity that contains all city stations in `data.stations[]`.
+- In the integration layer, each station is handled and referenced by its `data.stations[].station_id` value.
+- Therefore, `station_id` is the station-level key inside the feed array, not a standalone NGSI-LD entity id by itself.
+
 ### Example JSON-LD
 
 ```json
@@ -696,7 +702,7 @@ Official context:
   },
   "refVehicle": {
     "type": "Relationship",
-    "object": "urn:ngsi-ld:Device:acoruna-bike-gps-0142"
+    "object": "urn:ngsi-ld:Device:acoruna:bike-gps-0142"
   },
   "@context": [
     "https://data.vlaanderen.be/doc/applicatieprofiel/mobiliteit-trips-en-aanbod/erkendestandaard/2020-04-23/context/mobiliteit-trips-en-aanbod-ap.jsonld"
