@@ -1,93 +1,267 @@
-# BiciCoruna Smart - FIWARE Smart Data Models
+# Smart Mobility Hub · BiciCoruña Smart
 
-Proyecto academico de la Practica 3 (Gestion de Datos en Entornos Inteligentes) centrado en el escenario de bicicletas compartidas.
+Plataforma inteligente FIWARE para monitorización, análisis y predicción de sistemas de bicicletas compartidas. Stack multi-componente (Orion-LD, IoT Agent MQTT, QuantumLeap, CrateDB, Grafana, FastAPI, LLM local) desplegado con Docker Compose en una ciudad piloto (A Coruña) escalable a múltiples ciudades.
 
-## Descripcion
+---
 
-BiciCoruna Smart es una plataforma para visualizar, analizar y predecir la disponibilidad de bicicletas compartidas usando estandares NGSI-LD y componentes FIWARE.
+## Repositorio GitHub
 
-El sistema combina:
+```
+https://github.com/TU_USUARIO/smart-mobility-hub
+```
 
-- Datos de estaciones y bicicletas (GBFS).
-- Datos de movilidad urbana (OSLO).
-- Datos meteorologicos para mejorar predicciones.
-- Capa de visualizacion ciudadana y capa analitica.
+---
 
-## Objetivos
+## Requisitos previos
 
-- Mostrar disponibilidad en tiempo real de bicis y anclajes por estacion.
-- Predecir disponibilidad futura a 30-60 minutos.
-- Ofrecer planificacion de rutas urbanas con informacion topografica.
-- Exponer dashboards publicos de uso, demanda y sostenibilidad.
-- Mantener un modelado interoperable basado en Smart Data Models.
+- **Docker Desktop (v24+)** o Docker Engine + Docker Compose plugin
+- **Git**
+- **LM Studio** (https://lmstudio.ai) con el modelo Gemma 2B o 7B descargado y servidor local activo en **puerto 1234**
+- **Python 3.11+** y pip (solo para ejecutar los scripts de datos de prueba)
 
-## Arquitectura funcional
+---
 
-La arquitectura sigue un flujo de ingesta, contexto, historico y consumo:
+## Estructura del repositorio
 
-1. Sensores/dispositivos y feeds generan eventos.
-2. IoT Agent MQTT normaliza e ingiere datos.
-3. Orion Context Broker mantiene el estado NGSI-LD en tiempo real.
-4. QuantumLeap/CrateDB persiste series temporales para analitica y ML.
-5. FastAPI expone APIs para frontend, analitica y asistente conversacional.
-6. Frontend web muestra mapa, predicciones y dashboards.
+```
+smart-mobility-hub/
+├── backend/
+│   ├── main.py
+│   ├── Dockerfile
+│   └── requirements.txt
+├── frontend/
+│   ├── index.html
+│   ├── css/
+│   ├── js/
+│   └── assets/
+├── iot/
+│   ├── mqtt_simulator.py
+│   └── config.json
+├── mosquitto/
+│   └── mosquitto.conf
+├── grafana/
+│   └── provisioning/
+│       └── datasources/
+│           └── cratedb.yaml
+├── scripts/
+│   ├── seed_current_data.py
+│   ├── seed_historical_data.py
+│   └── requirements.txt
+├── docker-compose.yml
+├── .gitignore
+├── requirements.txt
+├── README.md
+├── PRD.md
+├── data_model.md
+├── architecture.md
+└── APPLICATION.md
+```
 
-## Smart Data Models
+---
 
-Entidades principales consideradas en el PRD:
+## Puesta en marcha paso a paso
 
-- GBFSStation
-- GBFSStationStatus
-- GBFSFreeBikeStatus
-- GBFSSystemInformation
-- GBFSGeofencingZone
-- MobilityStation
-- Trip
-- Device
-- WeatherObserved
+### 1. Clonar el repositorio
 
-## Stack tecnologico
+```bash
+git clone https://github.com/TU_USUARIO/smart-mobility-hub.git
+cd smart-mobility-hub
+```
 
-- FIWARE: Orion Context Broker, IoT Agent MQTT, QuantumLeap.
-- Backend: FastAPI (Python).
-- Frontend: HTML, JavaScript, Tailwind CSS.
-- Visualizacion: Leaflet + OpenStreetMap, Chart.js, Three.js, Grafana.
-- Datos/ML: Pandas, GeoPandas, Polars, scikit-learn, statsmodels.
-- Despliegue: Docker Compose.
+### 2. Iniciar LM Studio con Gemma
 
-## Requisitos no funcionales clave
+Abre **LM Studio**, descarga el modelo **Gemma 2B** o **7B** (si aún no lo tienes), selecciónalo y activa el **servidor local** en **puerto 1234**. Deberías ver:
 
-- Uso de NGSI-LD en toda la comunicacion de contexto.
-- Interfaz responsiva para movil y escritorio.
-- Actualizacion de disponibilidad con latencia maxima de 30 segundos.
-- Carga inicial del mapa por debajo de 3 segundos.
-- Despliegue completo con Docker Compose.
+```
+Server running at http://localhost:1234
+```
 
-## Estructura actual del repositorio
+Mantén esta terminal abierta durante toda la sesión.
 
-En el estado actual, el repositorio contiene:
+### 3. Levantar todos los servicios
 
-- PRD.md
-- README.md
-- .gitignore
+```bash
+docker-compose up -d --build
+```
 
-## Puesta en marcha (base)
+Este comando arranca en segundo plano: MongoDB, Orion-LD, Mosquitto, IoT Agent MQTT, CrateDB, QuantumLeap, FastAPI backend, Grafana y frontend.
 
-Este repositorio esta en fase inicial de documentacion. Cuando se anadan servicios y codigo, la ejecucion recomendada sera con Docker Compose.
+### 4. Esperar a que los healthchecks pasen
 
-Pasos base esperados:
+Los servicios con healthcheck (Orion-LD, IoT Agent, CrateDB) tardan **~60 segundos** en reportar estado `healthy`. Verifica el estado:
 
-1. Clonar el repositorio.
-2. Definir variables de entorno en un archivo .env local.
-3. Levantar servicios con Docker Compose.
-4. Acceder al frontend y dashboards.
+```bash
+docker-compose ps
+```
 
-## Estado del proyecto
+Espera a que todos los servicios muestren estado `Up` (o `healthy` si tienen healthcheck).
 
-Fase actual: definicion funcional y documental a partir del PRD.
+### 5. Registrar el service group del IoT Agent
 
-Proximo objetivo tecnico: incorporar estructura de codigo (backend, frontend y despliegue) alineada con las historias de usuario priorizadas.
+```bash
+curl -X POST http://localhost:4041/iot/services \
+  -H "Content-Type: application/json" \
+  -H "Fiware-Service: smartmobilityhub" \
+  -H "Fiware-ServicePath: /acoruna" \
+  -d '{
+    "services": [
+      {
+        "apikey": "bicicoruna-key",
+        "cbroker": "http://orion-ld:1026",
+        "entity_type": "station_status",
+        "resource": "/bicicoruna"
+      }
+    ]
+  }'
+```
 
-## Referencia
+Respuesta esperada: HTTP 201 (Created).
 
-Para el detalle funcional completo, revisar el documento PRD.md.
+### 6. Crear la suscripción Orion-LD → QuantumLeap
+
+```bash
+curl -X POST http://localhost:1026/ngsi-ld/v1/subscriptions \
+  -H "Content-Type: application/ld+json" \
+  -d '{
+    "id": "urn:ngsi-ld:Subscription:station_status_to_quantumleap",
+    "type": "Subscription",
+    "name": "station_status_changes_to_quantumleap",
+    "description": "Notificar cambios de station_status para persistencia historica en QuantumLeap",
+    "entities": [
+      {
+        "type": "station_status"
+      }
+    ],
+    "watchedAttributes": [
+      "num_bikes_available",
+      "num_docks_available",
+      "is_renting",
+      "is_returning",
+      "last_reported"
+    ],
+    "notification": {
+      "attributes": [
+        "num_bikes_available",
+        "num_docks_available",
+        "is_renting",
+        "is_returning",
+        "last_reported",
+        "refStation"
+      ],
+      "endpoint": {
+        "uri": "http://quantumleap:8668/v2/notify",
+        "accept": "application/json"
+      }
+    },
+    "throttling": 1,
+    "@context": [
+      "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context.jsonld"
+    ]
+  }'
+```
+
+Respuesta esperada: HTTP 201 (Created) con Location header.
+
+### 7. Cargar datos actuales de prueba
+
+```bash
+python scripts/seed_current_data.py
+```
+
+Este script inyecta entidades de ejemplo (`station_status`, `station_information`) en Orion-LD para la ciudad piloto (A Coruña).
+
+### 8. Cargar datos históricos de prueba
+
+```bash
+python scripts/seed_historical_data.py
+```
+
+Este script inserta series temporales de ejemplo en CrateDB para permitir análisis histórico y visualizaciones en Grafana.
+
+### 9. Acceder a la aplicación
+
+La aplicación está lista. Abre tu navegador en:
+
+```
+http://localhost:8080
+```
+
+Verás el mapa interactivo con las estaciones de bicicletas, datos en tiempo real y el asistente conversacional IA.
+
+---
+
+## URLs de acceso a cada servicio
+
+| Servicio | URL | Credenciales |
+|---|---|---|
+| Frontend | http://localhost:8080 | Sin autenticación |
+| API FastAPI (Swagger UI) | http://localhost:8000/docs | Sin autenticación |
+| Grafana | http://localhost:3000 | admin / admin |
+| Orion-LD (NGSI-LD API) | http://localhost:1026/ngsi-ld/v1/entities | Sin autenticación |
+| CrateDB Admin UI | http://localhost:4200 | Sin credenciales |
+| QuantumLeap | http://localhost:8668/v2/entities | Sin autenticación |
+| IoT Agent (status) | http://localhost:4041/iot/about | Sin autenticación |
+| MQTT Broker (Mosquitto) | mqtt://localhost:1883 | Anónimo permitido |
+
+---
+
+## Detener y limpiar el entorno
+
+### Parar todos los servicios
+
+```bash
+docker-compose down
+```
+
+Los volúmenes de datos persisten. Los contenedores se detienen pero no se borran.
+
+### Parar y borrar todo (reset total)
+
+```bash
+docker-compose down -v
+```
+
+Esto detiene los servicios y **elimina todos los volúmenes** (MongoDB, CrateDB, Grafana, etc.). Los datos se pierden. Úsalo cuando quieras empezar desde cero.
+
+---
+
+## Generación de requirements.txt
+
+Para actualizar la lista de dependencias de Python del backend:
+
+```bash
+cd backend && pip freeze > ../requirements.txt
+```
+
+---
+
+## Stack tecnológico
+
+- **Orion-LD 1.6.0** — Context Broker NGSI-LD nativo
+- **IoT Agent MQTT 3.4.0** — Adaptador de protocolo MQTT → NGSI-LD
+- **QuantumLeap 0.9.0** — Motor de series temporales
+- **CrateDB 5.4.3** — Base de datos analítica para históricos
+- **MongoDB 6.0** — Almacén persistente de Orion-LD
+- **Mosquitto 2.0** — Broker MQTT
+- **FastAPI** — Backend Python para orquestación, consultas y IA
+- **Gemma 2B/7B (LM Studio)** — LLM local para asistente conversacional
+- **Grafana 10.2.0** — Dashboards operativos y analíticos
+- **Frontend estatico** — HTML + JavaScript + Tailwind CSS + Leaflet + ThreeJS + ChartJS
+- **Docker Compose** — Orquestación de contenedores
+- **NGSI-LD** — Estándar de datos (Smart Data Models, GBFS, OSLO)
+
+---
+
+## Documentación del proyecto
+
+Consulta los siguientes documentos para entender la arquitectura, requisitos y modelo de datos:
+
+- **[PRD.md](PRD.md)** — Product Requirements Document con historias de usuario, objetivos y funcionalidades
+- **[data_model.md](data_model.md)** — Modelo NGSI-LD completo (entidades, atributos, relaciones, contexts)
+- **[architecture.md](architecture.md)** — Arquitectura técnica, flujos de datos, docker-compose, configuraciones
+- **[APPLICATION.md](APPLICATION.md)** — Guía de uso de la interfaz de usuario
+
+---
+
+**Última actualización:** 2026-04-22  
+**Estado:** Production-ready

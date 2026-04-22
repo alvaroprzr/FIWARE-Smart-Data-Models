@@ -394,8 +394,10 @@ services:
     image: orchestracities/quantumleap:0.9.0
     container_name: quantumleap
     depends_on:
-      - cratedb
-      - orion-ld
+      cratedb:
+        condition: service_healthy
+      orion-ld:
+        condition: service_healthy
     networks:
       - fiware_net
     ports:
@@ -616,3 +618,15 @@ Condicion de trigger:
 - El backend filtra por ciudad para aislar contexto operacional y conversacional.
 - Se replica el esquema por ciudad reutilizando tipos canonicamente definidos (`station_status`, `station_information`, `free_bike_status`, etc.).
 - A Coruna se mantiene como baseline de validacion (piloto), sin limitar el onboarding de nuevas ciudades.
+
+---
+
+## 9. Archivos de configuración auxiliares
+
+### mosquitto.conf
+
+```conf
+# ./mosquitto/mosquitto.conf
+listener 1883
+allow_anonymous true
+```
