@@ -7,7 +7,7 @@ Plataforma inteligente FIWARE para monitorización, análisis y predicción de s
 ## Repositorio GitHub
 
 ```
-https://github.com/TU_USUARIO/smart-mobility-hub
+https://github.com/alvaroprzr/FIWARE-Smart-Data-Models
 ```
 
 ---
@@ -24,7 +24,7 @@ https://github.com/TU_USUARIO/smart-mobility-hub
 ## Estructura del repositorio
 
 ```
-smart-mobility-hub/
+FIWARE-Smart-Data-Models/
 ├── backend/
 │   ├── main.py
 │   ├── Dockerfile
@@ -64,8 +64,8 @@ smart-mobility-hub/
 ### 1. Clonar el repositorio
 
 ```bash
-git clone https://github.com/TU_USUARIO/smart-mobility-hub.git
-cd smart-mobility-hub
+git clone https://github.com/alvaroprzr/FIWARE-Smart-Data-Models.git
+cd FIWARE-Smart-Data-Models
 ```
 
 ### 2. Iniciar LM Studio con Gemma
