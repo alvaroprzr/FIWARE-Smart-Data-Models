@@ -204,7 +204,7 @@ Este script inserta series temporales de ejemplo en CrateDB para permitir análi
 La aplicación está lista. Abre tu navegador en:
 
 ```
-http://localhost:8080
+http://localhost:8081
 ```
 
 Verás el mapa interactivo con las estaciones de bicicletas, datos en tiempo real y el asistente conversacional IA.
@@ -215,7 +215,7 @@ Verás el mapa interactivo con las estaciones de bicicletas, datos en tiempo rea
 
 | Servicio | URL | Credenciales |
 |---|---|---|
-| Frontend | http://localhost:8080 | Sin autenticación |
+| Frontend | http://localhost:8081 | Sin autenticación |
 | API FastAPI (Swagger UI) | http://localhost:8000/docs | Sin autenticación |
 | Grafana | http://localhost:3000 | admin / admin |
 | Orion-LD (NGSI-LD API) | http://localhost:1026/ngsi-ld/v1/entities | Sin autenticación |

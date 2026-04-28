@@ -175,7 +175,7 @@ flowchart LR
   end
 
   subgraph UserFlow[Flujo usuario y IA]
-    FE["Frontend estatico\nHTML+JS+Tailwind+Leaflet+ThreeJS+ChartJS\n8080"]
+    FE["Frontend estatico\nHTML+JS+Tailwind+Leaflet+ThreeJS+ChartJS\n8081"]
     API["FastAPI backend\n8000"]
     ML["Modelo ML\nserving predicciones"]
     LLM["LM Studio + Gemma\nhttp://host.docker.internal:1234/v1"]
@@ -308,7 +308,7 @@ flowchart LR
 | cratedb | crate:5.4.3 | 4200, 5432 | 4200, 5432 | http://localhost:4200 |
 | fastapi-backend | build ./backend/Dockerfile | 8000 | 8000 | http://localhost:8000 |
 | grafana | grafana/grafana:10.2.0 | 3000 | 3000 | http://localhost:3000 |
-| frontend | nginx:stable-alpine | 80 | 8080 | http://localhost:8080 |
+| frontend | nginx:stable-alpine | 80 | 8081 | http://localhost:8081 |
 
 ---
 
@@ -507,7 +507,7 @@ services:
     networks:
       - fiware_net
     ports:
-      - "8080:80"
+      - "8081:80"
     volumes:
       - ./frontend:/usr/share/nginx/html:ro
     restart: unless-stopped
