@@ -261,6 +261,10 @@ def ngsi_entity(entity_id: str, entity_type: str, attributes: Dict[str, Any], co
     return payload
 
 
+def prop(value: Any) -> Dict[str, Any]:
+    return {"type": "Property", "value": value}
+
+
 def attributes_only(entity: Dict[str, Any]) -> Dict[str, Any]:
     return {key: copy.deepcopy(value) for key, value in entity.items() if key not in {"id", "type", "@context"}}
 
@@ -304,27 +308,29 @@ def build_weather_observed() -> Dict[str, Any]:
         "urn:ngsi-ld:WeatherObserved:acoruna:marina-001",
         "WeatherObserved",
         {
-            "dateObserved": NOW_ISO,
+            "dateObserved": prop(NOW_ISO),
             "location": {
                 "type": "GeoProperty",
                 "value": {"type": "Point", "coordinates": [-8.3932, 43.3718]},
             },
-            "address": {
-                "addressCountry": "ES",
-                "addressLocality": "A Coruna",
-                "addressRegion": "Galicia",
-            },
-            "dataProvider": "AEMET",
-            "source": "https://www.aemet.es",
-            "temperature": 14.8,
-            "relativeHumidity": 0.79,
-            "atmosphericPressure": 1017.4,
-            "precipitation": 0.2,
-            "windSpeed": 9.6,
-            "windDirection": 310,
-            "weatherType": "cloudy",
-            "visibility": "good",
-            "uVIndexMax": 2.0,
+            "address": prop(
+                {
+                    "addressCountry": "ES",
+                    "addressLocality": "A Coruna",
+                    "addressRegion": "Galicia",
+                }
+            ),
+            "dataProvider": prop("AEMET"),
+            "source": prop("https://www.aemet.es"),
+            "temperature": prop(14.8),
+            "relativeHumidity": prop(0.79),
+            "atmosphericPressure": prop(1017.4),
+            "precipitation": prop(0.2),
+            "windSpeed": prop(9.6),
+            "windDirection": prop(310),
+            "weatherType": prop("cloudy"),
+            "visibility": prop("good"),
+            "uVIndexMax": prop(2.0),
             "refDevice": {
                 "type": "Relationship",
                 "object": "urn:ngsi-ld:Device:acoruna:meteo-sensor-01",
@@ -364,10 +370,10 @@ def build_station_information() -> Dict[str, Any]:
         "urn:ngsi-ld:station_information:acoruna:bicicoruna",
         "station_information",
         {
-            "last_updated": NOW_EPOCH,
-            "ttl": 30,
-            "version": "3.0",
-            "data": {"stations": stations},
+            "last_updated": prop(NOW_EPOCH),
+            "ttl": prop(30),
+            "version": prop("3.0"),
+            "data": prop({"stations": stations}),
             "refWeather": {
                 "type": "Relationship",
                 "object": "urn:ngsi-ld:WeatherObserved:acoruna:marina-001",
@@ -382,10 +388,11 @@ def build_system_information() -> Dict[str, Any]:
         "urn:ngsi-ld:system_information:acoruna:bicicoruna",
         "system_information",
         {
-            "last_updated": NOW_EPOCH,
-            "ttl": 3600,
-            "version": "3.0",
-            "data": {
+            "last_updated": prop(NOW_EPOCH),
+            "ttl": prop(3600),
+            "version": prop("3.0"),
+            "data": prop(
+                {
                 "system_id": "bicicoruna",
                 "language": "es",
                 "name": "BiciCoruna",
@@ -397,7 +404,8 @@ def build_system_information() -> Dict[str, Any]:
                 "phone_number": "+34981000000",
                 "email": "info@bicicoruna.example.com",
                 "license_url": None,
-            },
+                }
+            ),
         },
         GBFS_CONTEXT,
     )
@@ -413,17 +421,17 @@ def build_device_entities() -> List[Dict[str, Any]]:
                 f"urn:ngsi-ld:Device:acoruna:sensor-ACORUNA-{index:03d}",
                 "Device",
                 {
-                    "controlledProperty": ["num_bikes_available"],
-                    "deviceCategory": ["sensor"],
-                    "serialNumber": serial_number,
-                    "hardwareVersion": "1.0",
-                    "softwareVersion": "2.4.1",
-                    "firmwareVersion": "1.8.0",
-                    "batteryLevel": battery_level,
-                    "deviceState": "ok",
-                    "dateInstalled": INSTALLATION_ISO,
-                    "dateLastCalibration": CALIBRATION_ISO,
-                    "dateLastValueReported": NOW_ISO,
+                    "controlledProperty": prop(["num_bikes_available"]),
+                    "deviceCategory": prop(["sensor"]),
+                    "serialNumber": prop(serial_number),
+                    "hardwareVersion": prop("1.0"),
+                    "softwareVersion": prop("2.4.1"),
+                    "firmwareVersion": prop("1.8.0"),
+                    "batteryLevel": prop(battery_level),
+                    "deviceState": prop("ok"),
+                    "dateInstalled": prop(INSTALLATION_ISO),
+                    "dateLastCalibration": prop(CALIBRATION_ISO),
+                    "dateLastValueReported": prop(NOW_ISO),
                     "location": {
                         "type": "GeoProperty",
                         "value": {"type": "Point", "coordinates": [station["lon"], station["lat"]]},
@@ -448,20 +456,18 @@ def build_station_status_entities() -> List[Dict[str, Any]]:
                 f"urn:ngsi-ld:station_status:acoruna:{station['station_id']}",
                 "station_status",
                 {
-                    "last_updated": NOW_EPOCH,
-                    "ttl": 30,
-                    "version": "3.0",
-                    "data": {
-                        "station_id": station["station_id"],
-                        "num_bikes_available": num_bikes_available,
-                        "num_docks_available": station["capacity"] - num_bikes_available,
-                        "is_installed": True,
-                        "is_renting": True,
-                        "is_returning": True,
-                        "last_reported": NOW_EPOCH,
-                        "num_bikes_disabled": 0,
-                        "num_docks_disabled": 0,
-                    },
+                    "last_updated": prop(NOW_EPOCH),
+                    "ttl": prop(30),
+                    "version": prop("3.0"),
+                    "station_id": prop(station["station_id"]),
+                    "num_bikes_available": prop(num_bikes_available),
+                    "num_docks_available": prop(station["capacity"] - num_bikes_available),
+                    "is_installed": prop(True),
+                    "is_renting": prop(True),
+                    "is_returning": prop(True),
+                    "last_reported": prop(NOW_EPOCH),
+                    "num_bikes_disabled": prop(0),
+                    "num_docks_disabled": prop(0),
                     "refStation": {
                         "type": "Relationship",
                         "object": "urn:ngsi-ld:station_information:acoruna:bicicoruna",
@@ -497,10 +503,10 @@ def build_free_bike_status() -> Dict[str, Any]:
         "urn:ngsi-ld:free_bike_status:acoruna:bicicoruna",
         "free_bike_status",
         {
-            "last_updated": NOW_EPOCH,
-            "ttl": 30,
-            "version": "3.0",
-            "data": {"bikes": bikes},
+            "last_updated": prop(NOW_EPOCH),
+            "ttl": prop(30),
+            "version": prop("3.0"),
+            "data": prop({"bikes": bikes}),
             "refStation": {
                 "type": "Relationship",
                 "object": "urn:ngsi-ld:station_information:acoruna:bicicoruna",
