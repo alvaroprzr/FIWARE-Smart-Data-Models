@@ -301,7 +301,7 @@ flowchart LR
 | Servicio | Imagen Docker | Puerto interno | Puerto externo | URL de acceso |
 |---|---|---:|---:|---|
 | orion-ld | fiware/orion-ld:1.6.0 | 1026 | 1026 | http://localhost:1026 |
-| mongodb | mongo:6.0 | 27017 | 27017 | mongodb://localhost:27017 |
+| mongodb | mongo:4.4 | 27017 | 27017 | mongodb://localhost:27017 |
 | iot-agent-mqtt | fiware/iotagent-json:3.4.0 | 4041, 7896 | 4041, 7896 | http://localhost:4041 |
 | mosquitto | eclipse-mosquitto:2.0 | 1883, 9001 | 1883, 9001 | mqtt://localhost:1883 |
 | quantumleap | orchestracities/quantumleap:0.9.0 | 8668 | 8668 | http://localhost:8668 |
@@ -329,7 +329,7 @@ volumes:
 
 services:
   mongodb:
-    image: mongo:6.0
+    image: mongo:4.4
     container_name: mongodb
     networks:
       - fiware_net
@@ -424,7 +424,8 @@ services:
     command: >
       crate
       -Ccluster.name=smartmobilityhub
-      -Ccluster.initial_master_nodes=crate@cratedb
+      -Cnode.name=cratedb
+      -Ccluster.initial_master_nodes=cratedb
       -Cgateway.expected_data_nodes=1
       -Cgateway.recover_after_data_nodes=1
       -Cpath.data=/data
