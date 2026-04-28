@@ -650,6 +650,10 @@ Topico operativo esperado por el IoT Agent:
 }
 ```
 
+Endpoint de alta de suscripción:
+- `POST http://orion-ld:1026/ngsi-ld/v1/subscriptions`
+- Headers: Content-Type: application/ld+json, Fiware-Service: smartmobilityhub, Fiware-ServicePath: /acoruna
+
 ## 7.b Suscripción Orion-LD → QuantumLeap: WeatherObserved
 
 ```json
@@ -689,7 +693,7 @@ Topico operativo esperado por el IoT Agent:
 
 Endpoint de alta de suscripción:
 - `POST http://orion-ld:1026/ngsi-ld/v1/subscriptions`
-- Header: `Content-Type: application/ld+json`
+- Headers: Content-Type: application/ld+json, Fiware-Service: smartmobilityhub, Fiware-ServicePath: /acoruna
 
 Condición de trigger:
 - Orion-LD dispara notify cuando cambia cualquiera de los `watchedAttributes` en entidades de tipo `WeatherObserved`.
@@ -732,7 +736,7 @@ Condición de trigger:
 
 Endpoint de alta de suscripción:
 - `POST http://orion-ld:1026/ngsi-ld/v1/subscriptions`
-- Header: `Content-Type: application/ld+json`
+- Headers: Content-Type: application/ld+json, Fiware-Service: smartmobilityhub, Fiware-ServicePath: /acoruna
 
 Condición de trigger:
 - Orion-LD dispara notify cuando cambia cualquiera de los `watchedAttributes` en entidades de tipo `Trip`.
