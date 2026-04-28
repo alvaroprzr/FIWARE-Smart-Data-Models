@@ -1,0 +1,195 @@
+version: "3.9"
+
+networks:
+  fiware_net:
+    name: fiware_net
+    driver: bridge
+
+volumes:
+  mongodb_data:
+  cratedb_data:
+  grafana_data:
+
+services:
+  mongodb:
+    image: mongo:6.0
+    container_name: mongodb
+    networks:
+      - fiware_net
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    restart: unless-stopped
+
+  orion-ld:
+    image: fiware/orion-ld:1.6.0
+    container_name: orion-ld
+    depends_on:
+      - mongodb
+    networks:
+      - fiware_net
+    ports:
+      - "1026:1026"
+    command: >
+      -dbhost mongodb
+      -logLevel INFO
+      -corsOrigin __ALL
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:1026/version || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    container_name: mosquitto
+    networks:
+      - fiware_net
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
+    restart: unless-stopped
+
+  iot-agent-mqtt:
+    image: fiware/iotagent-json:3.4.0
+    container_name: iot-agent-mqtt
+    depends_on:
+      mongodb:
+        condition: service_started
+      orion-ld:
+        condition: service_healthy
+      mosquitto:
+        condition: service_started
+    networks:
+      - fiware_net
+    ports:
+      - "4041:4041"
+      - "7896:7896"
+    environment:
+      - IOTA_CB_HOST=orion-ld
+      - IOTA_CB_PORT=1026
+      - IOTA_NORTH_PORT=4041
+      - IOTA_HTTP_PORT=7896
+      - IOTA_MONGO_HOST=mongodb
+      - IOTA_MONGO_PORT=27017
+      - IOTA_REGISTRY_TYPE=mongodb
+      - IOTA_MONGO_DB=iotagentjson
+      - IOTA_DEFAULT_RESOURCE=/iot/json
+      - IOTA_DEFAULT_TRANSPORT=MQTT
+      - IOTA_MQTT_HOST=mosquitto
+      - IOTA_MQTT_PORT=1883
+      - IOTA_TIMESTAMP=true
+      - IOTA_LOG_LEVEL=INFO
+      - IOTA_CB_NGSI_VERSION=ld
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:4041/iot/about || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+
+  cratedb:
+    image: crate:5.4.3
+    container_name: cratedb
+    networks:
+      - fiware_net
+    ports:
+      - "4200:4200"
+      - "5432:5432"
+    volumes:
+      - cratedb_data:/data
+    command: >
+      crate
+      -Ccluster.name=smartmobilityhub
+      -Ccluster.initial_master_nodes=crate@cratedb
+      -Cgateway.expected_data_nodes=1
+      -Cgateway.recover_after_data_nodes=1
+      -Cpath.data=/data
+      -Cauth.host_based.enabled=false
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:4200/ || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+    restart: unless-stopped
+
+  quantumleap:
+    image: orchestracities/quantumleap:0.9.0
+    container_name: quantumleap
+    depends_on:
+      cratedb:
+        condition: service_healthy
+      orion-ld:
+        condition: service_healthy
+    networks:
+      - fiware_net
+    ports:
+      - "8668:8668"
+    environment:
+      - CRATE_HOST=cratedb
+      - CRATE_PORT=4200
+      - USE_GEOCODING=False
+      - LOGLEVEL=INFO
+    restart: unless-stopped
+
+  fastapi-backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: fastapi-backend
+    depends_on:
+      - orion-ld
+      - quantumleap
+      - cratedb
+    networks:
+      - fiware_net
+    ports:
+      - "8000:8000"
+    environment:
+      - ORION_URL=http://orion-ld:1026
+      - QUANTUMLEAP_URL=http://quantumleap:8668
+      - CRATEDB_HOST=cratedb
+      - CRATEDB_PORT=5432
+      - LM_STUDIO_URL=http://host.docker.internal:1234/v1
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:10.2.0
+    container_name: grafana
+    depends_on:
+      - cratedb
+    networks:
+      - fiware_net
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SERVER_ROOT_URL=http://localhost:3000
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources
+    restart: unless-stopped
+
+  frontend:
+    image: nginx:stable-alpine
+    container_name: frontend
+    depends_on:
+      - fastapi-backend
+    networks:
+      - fiware_net
+    ports:
+      - "8080:80"
+    volumes:
+      - ./frontend:/usr/share/nginx/html:ro
+    restart: unless-stopped
