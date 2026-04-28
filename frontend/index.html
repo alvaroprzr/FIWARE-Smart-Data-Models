@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Smart Mobility Hub · BiciCoruña Smart</title>
+  <meta name="description" content="A Coruña pilot for a FIWARE-based smart bike mobility hub." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div class="shell">
+    <header class="hero">
+      <div>
+        <p class="eyebrow">Smart Mobility Hub</p>
+        <h1>BiciCoruña Smart</h1>
+        <p class="lead">A Coruña pilot for live station status, weather context, predictions and local AI assistance.</p>
+      </div>
+      <div class="hero-meta">
+        <span class="pill">NGSI-LD native</span>
+        <span class="pill">QuantumLeap ready</span>
+        <span class="pill">LM Studio connected</span>
+      </div>
+    </header>
+
+    <main class="grid">
+      <section class="panel panel-wide">
+        <div class="panel-header">
+          <h2>Mapa operativo</h2>
+          <p>Estado en tiempo real de estaciones y sensores de anclaje.</p>
+        </div>
+        <div id="map" class="map-canvas" aria-label="Mapa interactivo de estaciones"></div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <h2>Chat IA</h2>
+          <p>Consulta el sistema con contexto vivo.</p>
+        </div>
+        <form id="chat-form" class="chat-form">
+          <label class="sr-only" for="chat-input">Escribe tu consulta</label>
+          <textarea id="chat-input" rows="5" placeholder="¿Cuántas bicis hay en María Pita?"></textarea>
+          <button type="submit">Preguntar</button>
+        </form>
+        <div id="chat-output" class="output-card">El asistente responderá aquí.</div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <h2>Predicción</h2>
+          <p>Panel base para el modelo de disponibilidad.</p>
+        </div>
+        <canvas id="availability-chart" width="400" height="240"></canvas>
+      </section>
+
+      <section class="panel panel-wide">
+        <div class="panel-header">
+          <h2>Vista 3D</h2>
+          <p>Escena urbana preparada para Three.js.</p>
+        </div>
+        <div id="three-view" class="three-canvas" aria-label="Vista 3D de la ciudad"></div>
+      </section>
+    </main>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.174.0/build/three.min.js"></script>
+  <script type="module">
+    import { initializeMap } from './js/map.js';
+    import { initializeChat } from './js/chat.js';
+    import { initialize3DView } from './js/3d-view.js';
+    import { initializeCharts } from './js/charts.js';
+
+    initializeMap();
+    initializeChat();
+    initialize3DView();
+    initializeCharts();
+  </script>
+</body>
+</html>

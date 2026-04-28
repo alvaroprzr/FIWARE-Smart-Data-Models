@@ -1,0 +1,56 @@
+{
+  "uid": "bikecoruna-overview",
+  "title": "BiciCoruna Overview",
+  "tags": ["smart-mobility-hub", "acoruna"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "city",
+        "type": "query",
+        "label": "City",
+        "hide": 0,
+        "query": "acoruna",
+        "current": {
+          "selected": true,
+          "text": "acoruna",
+          "value": "acoruna"
+        }
+      },
+      {
+        "name": "station",
+        "type": "query",
+        "label": "Station",
+        "hide": 0,
+        "query": "ACORUNA-001",
+        "current": {
+          "selected": true,
+          "text": "ACORUNA-001",
+          "value": "ACORUNA-001"
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Bikes available",
+      "type": "timeseries",
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT date_trunc('hour', ts) AS time, avg(num_bikes_available) AS value FROM station_status_timeseries WHERE station_id = '$station' AND $__timeFilter(ts) GROUP BY 1 ORDER BY 1"
+        }
+      ]
+    }
+  ]
+}
