@@ -66,23 +66,13 @@ La plataforma agrupa 15 funcionalidades en tres perfiles:
 
 ---
 
-## 4. Funcionalidades Detalladas
+## 4. Resumen Técnico
 
-**Módulo 1: Mapa y Disponibilidad en Tiempo Real**
+**Mapa y Disponibilidad:** El mapa carga en <3 segundos desde Orion-LD, codificado por color (verde: >5 bicis, amarillo: 1–5, rojo: 0). El planificador de rutas integra GeoPandas/OSM para perfil de elevación. Predicciones de demanda (30–60 min) usando histórico + variables meteorológicas (viento, precipitación) con scikit-learn, MAE <2 bicicletas.
 
-El mapa carga en menos de 3 segundos con todas las estaciones de la ciudad activa. Cada marcador se codifica por color según disponibilidad: verde (>5 bicis), amarillo (1–5), rojo (0). Al clic se muestra nombre de estación, bicis disponibles, anclajes libres y última actualización. El selector de ciudad en la barra de navegación cambia el contexto completo sin recargar página. Los datos se refrescan automáticamente cada 30 segundos desde Orion-LD.
+**Dashboards y Analítica:** Grafana local (stack `smartmobilityhub`) conectada a CrateDB, parametrizada por `$city` y `$station`. Heatmap de demanda por zonas, correlación clima–uso (windSpeed, precipitation), panel sostenibilidad (CO₂ ahorrado 0.21 kg/km, km totales, viajes). Datos actualizados desde QuantumLeap/CrateDB mediante SQL.
 
-El planificador de rutas permite seleccionar origen y destino en el mapa o por nombre de estación. Se calcula el perfil de elevación usando GeoPandas sobre altimetría OSM, mostrando distancia total, desnivel acumulado y tiempo estimado (10–14 km/h media ciclista). La ruta se clasifica como Fácil/Moderada/Difícil según desnivel.
-
-Las predicciones de disponibilidad integran histórico de uso (QuantumLeap), hora del día, día de la semana y variables meteorológicas de `WeatherObserved` (especialmente `windSpeed` para A Coruña). El modelo se entrena con scikit-learn sobre datos históricos en CrateDB, alcanzando error medio absoluto (MAE) inferior a 2 bicicletas.
-
-**Módulo 2: Dashboards Analíticos y Sostenibilidad**
-
-Los dashboards Grafana se despliegan en una instancia local de Grafana (stack lógico `smartmobilityhub`), conectada a CrateDB mediante SQL. Están parametrizados con variables de plantilla (`$city`, `$station`) para soportar múltiples regiones sin duplicación de paneles. Permiten filtrar por rango de fechas, franja horaria, y mostran gráficas de barras (uso por hora), líneas (evolución diaria) y tablas de estaciones más usadas.
-
-El heatmap de demanda se genera sobre Leaflet a partir de datos históricos de la entidad `Trip` (OSLO), permitiendo filtro por franja horaria (mañana/tarde/noche) y tipo de día (laborable/fin de semana). La correlación clima–uso representa gráficamente la relación entre `windSpeed`, `precipitation` y número de viajes iniciados por hora, mostrando coeficiente de Pearson.
-
-El panel de impacto ambiental calcula CO₂ ahorrado (0,21 kg/km respecto a vehículo privado), km totales recorridos y número de viajes completados. Los datos se actualizan diariamente desde QuantumLeap y la visualización usa ChartJS con contadores animados.
+**Asistencia IA:** LLM local (Gemma vía LM Studio) ejecuta function calling contra Orion-LD, respondiendo consultas en lenguaje natural (<5s latencia). Sin dependencias externas, privacidad garantizada.
 
 ---
 

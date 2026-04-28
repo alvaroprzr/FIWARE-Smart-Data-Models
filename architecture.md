@@ -56,8 +56,9 @@ Adicionalmente, para alimentar correctamente los dashboards de correlación clim
 ```bash
 curl -X POST http://localhost:1026/ngsi-ld/v1/subscriptions \
   -H "Content-Type: application/ld+json" \
+  -H "Fiware-Service: smartmobilityhub" \
+  -H "Fiware-ServicePath: /acoruna" \
   -d '{
-    "id": "urn:ngsi-ld:Subscription:weatherobserved_to_quantumleap",
     "type": "Subscription",
     "name": "weatherobserved_changes_to_quantumleap",
     "entities": [ { "type": "WeatherObserved" } ],
@@ -76,6 +77,8 @@ Ejemplo equivalente para `Trip` (OSLO Mobility Trips AP):
 ```bash
 curl -X POST http://localhost:1026/ngsi-ld/v1/subscriptions \
   -H "Content-Type: application/ld+json" \
+  -H "Fiware-Service: smartmobilityhub" \
+  -H "Fiware-ServicePath: /acoruna" \
   -d '{
     "id": "urn:ngsi-ld:Subscription:trip_to_quantumleap",
     "type": "Subscription",
@@ -153,7 +156,7 @@ flowchart LR
   subgraph IoT[Flujo IoT]
     S1["Sensor de anclaje MQTT\n/bicicoruna/{stationId}/attrs\nJSON"]
     MQ(["Mosquitto\nMQTT Broker:1883"])
-    IA["IoT Agent MQTT JSON\nHTTP 4041 / MQTT 7896"]
+    IA["IoT Agent MQTT JSON\nHTTP 4041 / HTTP-south 7896"]
     ORI["Orion-LD\nNGSI-LD 1026"]
     S1 -- MQTT/JSON --> MQ
     MQ -- MQTT topic subscription --> IA

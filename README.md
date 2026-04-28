@@ -21,44 +21,6 @@ https://github.com/alvaroprzr/FIWARE-Smart-Data-Models
 
 ---
 
-## Estructura del repositorio
-
-```
-FIWARE-Smart-Data-Models/
-├── backend/
-│   ├── main.py
-│   ├── Dockerfile
-│   └── requirements.txt
-├── frontend/
-│   ├── index.html
-│   ├── css/
-│   ├── js/
-│   └── assets/
-├── iot/
-│   ├── mqtt_simulator.py
-│   └── config.json
-├── mosquitto/
-│   └── mosquitto.conf
-├── grafana/
-│   └── provisioning/
-│       └── datasources/
-│           └── cratedb.yaml
-├── scripts/
-│   ├── seed_current_data.py
-│   ├── seed_historical_data.py
-│   └── requirements.txt
-├── docker-compose.yml
-├── .gitignore
-├── requirements.txt
-├── README.md
-├── PRD.md
-├── data_model.md
-├── architecture.md
-└── APPLICATION.md
-```
-
----
-
 ## Puesta en marcha paso a paso
 
 ### 1. Clonar el repositorio
@@ -122,6 +84,8 @@ Respuesta esperada: HTTP 201 (Created).
 ```bash
 curl -X POST http://localhost:1026/ngsi-ld/v1/subscriptions \
   -H "Content-Type: application/ld+json" \
+  -H "Fiware-Service: smartmobilityhub" \
+  -H "Fiware-ServicePath: /acoruna" \
   -d '{
     "id": "urn:ngsi-ld:Subscription:station_status_to_quantumleap",
     "type": "Subscription",
@@ -167,6 +131,8 @@ Respuesta esperada: HTTP 201 (Created) con Location header.
 ```bash
 curl -X POST http://localhost:1026/ngsi-ld/v1/subscriptions \
   -H "Content-Type: application/ld+json" \
+  -H "Fiware-Service: smartmobilityhub" \
+  -H "Fiware-ServicePath: /acoruna" \
   -d '{
     "id": "urn:ngsi-ld:Subscription:weatherobserved_to_quantumleap",
     "type": "Subscription",
@@ -193,6 +159,8 @@ curl -X POST http://localhost:1026/ngsi-ld/v1/subscriptions \
 ```bash
 curl -X POST http://localhost:1026/ngsi-ld/v1/subscriptions \
   -H "Content-Type: application/ld+json" \
+  -H "Fiware-Service: smartmobilityhub" \
+  -H "Fiware-ServicePath: /acoruna" \
   -d '{
     "id": "urn:ngsi-ld:Subscription:trip_to_quantumleap",
     "type": "Subscription",
@@ -220,6 +188,8 @@ python scripts/seed_current_data.py
 ```
 
 Este script inyecta entidades de ejemplo (`station_status`, `station_information`) en Orion-LD para la ciudad piloto (A Coruña).
+
+**Nota:** El script debe enviar los headers FIWARE `Fiware-Service: smartmobilityhub` y `Fiware-ServicePath: /acoruna` en todas las peticiones POST/PATCH a Orion-LD al crear o actualizar entidades, para garantizar la consistencia con la configuración del IoT Agent.
 
 ### 8. Cargar datos históricos de prueba
 
@@ -315,4 +285,4 @@ Consulta los siguientes documentos para entender la arquitectura, requisitos y m
 ---
 
 **Última actualización:** 2026-04-22  
-**Estado:** Production-ready
+**Estado:** MVP (Minimum Viable Product) - Demostración funcional para Práctica 3
