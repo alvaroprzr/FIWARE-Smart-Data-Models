@@ -34,7 +34,7 @@ Rol:
 
 Mapeo MQTT -> NGSI-LD:
 - Topic de ingesta del dominio anclajes: `/bicicoruna/+/attrs`.
-- El `+` representa el identificador de estacion/sensor (por ejemplo `estacion_001`).
+- El `+` representa el identificador de estacion/sensor (por ejemplo `ACORUNA-001`).
 - Payload JSON esperado: `{ "num_bikes_available": 12, "ts": "2026-04-21T10:15:00Z" }`.
 - Mapeo principal:
   - `num_bikes_available` (MQTT JSON) -> atributo `num_bikes_available` de la entidad `station_status` en Orion-LD.
@@ -50,6 +50,50 @@ Mecanismo de suscripcion notify:
 - Orion-LD mantiene una Subscription sobre entidades `station_status`.
 - Al detectar cambio en atributos observados, Orion envia `notify` a `http://quantumleap:8668/v2/notify`.
 - QuantumLeap normaliza y escribe series temporales en CrateDB para analisis, dashboards y entrenamiento de modelos.
+
+Adicionalmente, para alimentar correctamente los dashboards de correlación clima–uso y los heatmaps de demanda, Orion debe mantener suscripciones equivalentes para `WeatherObserved` y `Trip` que notifiquen a QuantumLeap. Ejemplo de curl para crear la suscripción de `WeatherObserved`:
+
+```bash
+curl -X POST http://localhost:1026/ngsi-ld/v1/subscriptions \
+  -H "Content-Type: application/ld+json" \
+  -d '{
+    "id": "urn:ngsi-ld:Subscription:weatherobserved_to_quantumleap",
+    "type": "Subscription",
+    "name": "weatherobserved_changes_to_quantumleap",
+    "entities": [ { "type": "WeatherObserved" } ],
+    "watchedAttributes": ["temperature","windSpeed","dateObserved"],
+    "notification": { "attributes": ["temperature","windSpeed","dateObserved","location","refDevice"], "endpoint": { "uri": "http://quantumleap:8668/v2/notify", "accept": "application/json" } },
+    "throttling": 5,
+    "@context": [
+      "https://smartdatamodels.org/context.jsonld",
+      "https://raw.githubusercontent.com/smart-data-models/dataModel.Weather/master/context.jsonld"
+    ]
+  }'
+```
+
+Ejemplo equivalente para `Trip` (OSLO Mobility Trips AP):
+
+```bash
+curl -X POST http://localhost:1026/ngsi-ld/v1/subscriptions \
+  -H "Content-Type: application/ld+json" \
+  -d '{
+    "id": "urn:ngsi-ld:Subscription:trip_to_quantumleap",
+    "type": "Subscription",
+    "name": "trip_changes_to_quantumleap",
+    "description": "Notificar cambios de Trip para persistencia historica en QuantumLeap (heatmaps y correlacion demanda)",
+    "entities": [ { "type": "Trip" } ],
+    "watchedAttributes": ["departureTime","arrivalTime","refOrigin","refDestination"],
+    "notification": { "attributes": ["departureTime","arrivalTime","refOrigin","refDestination"], "endpoint": { "uri": "http://quantumleap:8668/v2/notify", "accept": "application/json" } },
+    "throttling": 5,
+    "@context": [ "https://data.vlaanderen.be/doc/applicatieprofiel/mobiliteit-trips-en-aanbod/erkendestandaard/2020-04-23/context/mobiliteit-trips-en-aanbod-ap.jsonld" ]
+  }'
+```
+
+**Notas sobre contextos NGSI-LD:**
+- `WeatherObserved` usa el contexto estándar de Smart Data Models (dataModel.Weather).
+- `Trip` usa el contexto oficial de la aplicación OSLO Mobility Trips and Offerings AP (Flandes).
+- Ambas suscripciones comparten la misma estructura base: type `Subscription`, `watchedAttributes` selectivos y endpoint único en QuantumLeap.
+
 
 ### 1.4 FastAPI backend
 
@@ -155,7 +199,7 @@ flowchart LR
 - Destino: broker Mosquitto.
 - Protocolo: MQTT.
 - Formato: JSON (`{"num_bikes_available": 12, "ts": "2026-04-21T10:15:00Z"}`).
-- Topic: `/bicicoruna/estacion_001/attrs` (matching `/bicicoruna/+/attrs`).
+- Topic: `/bicicoruna/ACORUNA-001/attrs` (matching `/bicicoruna/+/attrs`).
 
 2. IoT Agent consume topic y aplica mapping:
 - Origen: Mosquitto.
@@ -169,7 +213,7 @@ flowchart LR
 - Destino: Orion-LD.
 - Protocolo: HTTP.
 - Metodo: `PATCH`.
-- Endpoint: `/ngsi-ld/v1/entities/urn:ngsi-ld:station_status:acoruna:estacion_001/attrs`.
+- Endpoint: `/ngsi-ld/v1/entities/urn:ngsi-ld:station_status:acoruna:ACORUNA-001/attrs`.
 - Formato: `application/ld+json` (payload parcial de atributos).
 
 ### 3.b Ciclo historico: Orion notify -> QuantumLeap -> CrateDB
@@ -503,7 +547,7 @@ datasources:
 {
   "services": [
     {
-      "apikey": "bicicoruna-key",
+      "apikey": "bicicoruna",
       "cbroker": "http://orion-ld:1026",
       "entity_type": "station_status",
       "resource": "/bicicoruna"
@@ -522,8 +566,8 @@ Endpoint:
 {
   "devices": [
     {
-      "device_id": "estacion_001",
-      "entity_name": "urn:ngsi-ld:station_status:acoruna:estacion_001",
+      "device_id": "ACORUNA-001",
+      "entity_name": "urn:ngsi-ld:station_status:acoruna:ACORUNA-001",
       "entity_type": "station_status",
       "protocol": "PDI-IoTA-JSON",
       "transport": "MQTT",
@@ -544,7 +588,7 @@ Endpoint:
         {
           "name": "refStation",
           "type": "Relationship",
-          "value": "urn:ngsi-ld:station_information:acoruna:estacion_001"
+          "value": "urn:ngsi-ld:station_information:acoruna:bicicoruna"
         }
       ]
     }
@@ -558,7 +602,7 @@ Endpoint:
 
 Topico operativo esperado por el IoT Agent:
 - `/bicicoruna/+/attrs`
-- Ejemplo publicacion: `/bicicoruna/estacion_001/attrs` con payload `{"num_bikes_available":10}`.
+- Ejemplo publicacion: `/bicicoruna/ACORUNA-001/attrs` con payload `{"num_bikes_available":10}`.
 
 ---
 
@@ -603,12 +647,93 @@ Topico operativo esperado por el IoT Agent:
 }
 ```
 
-Endpoint de alta de suscripcion:
+## 7.b Suscripción Orion-LD → QuantumLeap: WeatherObserved
+
+```json
+{
+  "id": "urn:ngsi-ld:Subscription:weatherobserved_to_quantumleap",
+  "type": "Subscription",
+  "name": "weatherobserved_changes_to_quantumleap",
+  "description": "Notificar cambios de WeatherObserved para persistencia historica en QuantumLeap",
+  "entities": [
+    { "type": "WeatherObserved" }
+  ],
+  "watchedAttributes": [
+    "temperature",
+    "windSpeed",
+    "dateObserved"
+  ],
+  "notification": {
+    "attributes": [
+      "temperature",
+      "windSpeed",
+      "dateObserved",
+      "location",
+      "refDevice"
+    ],
+    "endpoint": {
+      "uri": "http://quantumleap:8668/v2/notify",
+      "accept": "application/json"
+    }
+  },
+  "throttling": 5,
+  "@context": [
+    "https://smartdatamodels.org/context.jsonld",
+    "https://raw.githubusercontent.com/smart-data-models/dataModel.Weather/master/context.jsonld"
+  ]
+}
+```
+
+Endpoint de alta de suscripción:
 - `POST http://orion-ld:1026/ngsi-ld/v1/subscriptions`
 - Header: `Content-Type: application/ld+json`
 
-Condicion de trigger:
-- Orion-LD dispara notify cuando cambia cualquiera de los `watchedAttributes` en entidades de tipo `station_status`.
+Condición de trigger:
+- Orion-LD dispara notify cuando cambia cualquiera de los `watchedAttributes` en entidades de tipo `WeatherObserved`.
+
+## 7.c Suscripción Orion-LD → QuantumLeap: Trip
+
+```json
+{
+  "id": "urn:ngsi-ld:Subscription:trip_to_quantumleap",
+  "type": "Subscription",
+  "name": "trip_changes_to_quantumleap",
+  "description": "Notificar cambios de Trip para persistencia historica en QuantumLeap (heatmaps y correlacion demanda)",
+  "entities": [
+    { "type": "Trip" }
+  ],
+  "watchedAttributes": [
+    "departureTime",
+    "arrivalTime",
+    "refOrigin",
+    "refDestination"
+  ],
+  "notification": {
+    "attributes": [
+      "departureTime",
+      "arrivalTime",
+      "refOrigin",
+      "refDestination"
+    ],
+    "endpoint": {
+      "uri": "http://quantumleap:8668/v2/notify",
+      "accept": "application/json"
+    }
+  },
+  "throttling": 5,
+  "@context": [
+    "https://data.vlaanderen.be/doc/applicatieprofiel/mobiliteit-trips-en-aanbod/erkendestandaard/2020-04-23/context/mobiliteit-trips-en-aanbod-ap.jsonld"
+  ]
+}
+```
+
+Endpoint de alta de suscripción:
+- `POST http://orion-ld:1026/ngsi-ld/v1/subscriptions`
+- Header: `Content-Type: application/ld+json`
+
+Condición de trigger:
+- Orion-LD dispara notify cuando cambia cualquiera de los `watchedAttributes` en entidades de tipo `Trip`.
+
 
 ---
 

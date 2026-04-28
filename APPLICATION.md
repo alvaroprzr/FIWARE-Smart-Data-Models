@@ -10,7 +10,7 @@
 
 **Smart Mobility Hub** es una plataforma inteligente de gestión, análisis y predicción de sistemas de bicicletas compartidas, diseñada con una arquitectura **multi-región agnóstica a ciudad** basada en estándares de datos abiertos (NGSI-LD, GBFS, OSLO). A Coruña actúa como ciudad piloto de validación.
 
-A diferencia de soluciones propietarias de ciudad única, la plataforma emplea una estrategia de **interoperabilidad estándar** que permite incorporar nuevas ciudades de forma modular sin rediseño de infraestructura. El sistema ofrece dos capas complementarias: una **capa ciudadana** con mapa interactivo de disponibilidad en tiempo real, predicciones de demanda y asistente conversacional con acceso al contexto vivo de Orion Context Broker; y una **capa analítica** en Grafana Cloud con dashboards parametrizados, heatmaps de demanda y correlación clima–uso.
+A diferencia de soluciones propietarias de ciudad única, la plataforma emplea una estrategia de **interoperabilidad estándar** que permite incorporar nuevas ciudades de forma modular sin rediseño de infraestructura. El sistema ofrece dos capas complementarias: una **capa ciudadana** con mapa interactivo de disponibilidad en tiempo real, predicciones de demanda y asistente conversacional con acceso al contexto vivo de Orion Context Broker; y una **capa analítica** en Grafana local con dashboards parametrizados, heatmaps de demanda y correlación clima–uso.
 
 La orografía costera de A Coruña y el efecto del viento atlántico se modelan como variables diferenciadoras en los análisis predictivos. El despliegue completo se orquesta mediante **Docker Compose en un único comando**, integrando componentes FIWARE obligatorios (Orion-LD, IoT Agent MQTT, QuantumLeap, CrateDB) con un backend FastAPI, frontend responsivo y LLM local (Gemma vía LM Studio).
 
@@ -58,7 +58,7 @@ La plataforma agrupa 15 funcionalidades en tres perfiles:
 - Interfaz responsiva para dispositivos móviles desde 360px (F-14)
 
 **Para el Analista / Operador:**
-- Dashboard histórico parametrizado por ciudad y estación en Grafana Cloud (F-09)
+- Dashboard histórico parametrizado por ciudad y estación en Grafana local (F-09)
 - Heatmap de demanda por zonas de la ciudad (F-10)
 - Predicción de redistribución: estaciones en riesgo de vaciarse o llenarse (F-11)
 - Correlación clima–uso: impacto de viento y lluvia en demanda (F-12)
@@ -78,7 +78,7 @@ Las predicciones de disponibilidad integran histórico de uso (QuantumLeap), hor
 
 **Módulo 2: Dashboards Analíticos y Sostenibilidad**
 
-Los dashboards Grafana se despliegan en el stack `smartmobilityhub` de Grafana Cloud, conectados a CrateDB mediante SQL. Están parametrizados con variables de plantilla (`$city`, `$station`) para soportar múltiples regiones sin duplicación de paneles. Permiten filtrar por rango de fechas, franja horaria, y mostran gráficas de barras (uso por hora), líneas (evolución diaria) y tablas de estaciones más usadas.
+Los dashboards Grafana se despliegan en una instancia local de Grafana (stack lógico `smartmobilityhub`), conectada a CrateDB mediante SQL. Están parametrizados con variables de plantilla (`$city`, `$station`) para soportar múltiples regiones sin duplicación de paneles. Permiten filtrar por rango de fechas, franja horaria, y mostran gráficas de barras (uso por hora), líneas (evolución diaria) y tablas de estaciones más usadas.
 
 El heatmap de demanda se genera sobre Leaflet a partir de datos históricos de la entidad `Trip` (OSLO), permitiendo filtro por franja horaria (mañana/tarde/noche) y tipo de día (laborable/fin de semana). La correlación clima–uso representa gráficamente la relación entre `windSpeed`, `precipitation` y número de viajes iniciados por hora, mostrando coeficiente de Pearson.
 
@@ -93,7 +93,7 @@ flowchart LR
   subgraph IoT[Flujo IoT]
     S1["Sensor de anclaje MQTT\n/bicicoruna/{stationId}/attrs\nJSON"]
     MQ(["Mosquitto\nMQTT Broker:1883"])
-    IA["IoT Agent MQTT JSON\nHTTP 4041 / MQTT 7896"]
+    IA["IoT Agent MQTT JSON\nHTTP 4041 / HTTP-south 7896"]
     ORI["Orion-LD\nNGSI-LD 1026"]
     S1 -- MQTT/JSON --> MQ
     MQ -- MQTT topic subscription --> IA
@@ -159,7 +159,7 @@ graph TD
 
 ## 7. Conclusiones Técnicas
 
-Smart Mobility Hub materializa una visión de **interoperabilidad abierta y escalabilidad multi-región** mediante el stack FIWARE nativo. Orion-LD (NGSI-LD) actúa como fuente única de verdad para contexto operativo en tiempo real. IoT Agent MQTT traduce sensores a entidades semánticas. QuantumLeap + CrateDB acumulan series temporales para ML e histórico. Grafana Cloud expone dashboards parametrizados. FastAPI orquesta lógica de negocio, function calling para LLM y predicciones.
+Smart Mobility Hub materializa una visión de **interoperabilidad abierta y escalabilidad multi-región** mediante el stack FIWARE nativo. Orion-LD (NGSI-LD) actúa como fuente única de verdad para contexto operativo en tiempo real. IoT Agent MQTT traduce sensores a entidades semánticas. QuantumLeap + CrateDB acumulan series temporales para ML e histórico. Grafana local expone dashboards parametrizados. FastAPI orquesta lógica de negocio, function calling para LLM y predicciones.
 
 El despliegue reproducible mediante Docker Compose en un único comando, sin configuración manual, asegura portabilidad a nuevas ciudades. La arquitectura es agnóstica a geografía pero adaptada a fenómenos locales (viento para A Coruña). Compliance con NGSI-LD, GBFS y OSLO garantiza futuras integraciones con sistemas intermodales y ecosistemas de datos abiertos urbanos.
 

@@ -5,7 +5,7 @@
 **Asignatura:** Gestión de Datos en Entornos Inteligentes — Práctica 3
 **Escenario:** Gestión de bicicletas compartidas en la ciudad (Escenario 6)
 **Ciudad piloto:** A Coruña, Galicia
-**Stack Grafana Cloud:** smartmobilityhub
+**Stack Grafana local:** smartmobilityhub
 
 ---
 
@@ -18,7 +18,7 @@ A diferencia de soluciones de ciudad única, la plataforma emplea una **arquitec
 La plataforma ofrece dos capas de valor complementarias:
 
 - **Capa ciudadana:** interfaz web responsiva con mapa interactivo de disponibilidad en tiempo real, planificador de rutas con perfil topográfico, predicciones de demanda y un asistente conversacional IA con acceso al contexto vivo de la ciudad.
-- **Capa analítica:** entorno de observabilidad y análisis histórico (Grafana Cloud) con dashboards parametrizados por ciudad y estación, heatmaps de demanda, correlación clima–uso y métricas de sostenibilidad.
+- **Capa analítica:** entorno de observabilidad y análisis histórico (Grafana local) con dashboards parametrizados por ciudad y estación, heatmaps de demanda, correlación clima–uso y métricas de sostenibilidad.
 
 La infraestructura se apoya en los componentes FIWARE obligatorios — **Orion Context Broker (NGSI-LD)**, **IoT Agent MQTT** y **QuantumLeap + CrateDB** — y se orquesta mediante **Docker Compose** en un único comando.
 
@@ -32,7 +32,7 @@ La infraestructura se apoya en los componentes FIWARE obligatorios — **Orion C
 | OBJ-02 | Predecir la disponibilidad futura (30–60 min) mediante ML usando histórico de uso y variables meteorológicas (especialmente viento) |
 | OBJ-03 | Facilitar la planificación de rutas ciclistas con perfil de dificultad topográfico adaptado a la orografía de cada ciudad |
 | OBJ-04 | Ofrecer un asistente IA conversacional con acceso en tiempo real al contexto de Orion CB |
-| OBJ-05 | Proveer dashboards analíticos en Grafana Cloud parametrizados por ciudad y estación |
+| OBJ-05 | Proveer dashboards analíticos en Grafana local parametrizados por ciudad y estación |
 | OBJ-06 | Implementar una arquitectura multi-región seleccionable desde la interfaz, escalable a nuevas ciudades |
 | OBJ-07 | Modelar el sistema con NGSI-LD usando entidades GBFS, OSLO, Device y WeatherObserved relacionadas mediante `refs` |
 | OBJ-08 | Calcular dinámicamente métricas de sostenibilidad: CO₂ ahorrado, km recorridos, viajes equivalentes |
@@ -45,7 +45,7 @@ La infraestructura se apoya en los componentes FIWARE obligatorios — **Orion C
 Usuario final que accede desde móvil o navegador web. No requiere autenticación. Selecciona su ciudad desde la interfaz y puede localizar bicis, planificar rutas, consultar predicciones y usar el asistente conversacional.
 
 ### 3.2 Analista / Operador de Flota
-Usuario con acceso al dashboard analítico completo en Grafana Cloud. Monitoriza el estado de la flota, detecta desequilibrios entre estaciones y analiza patrones de uso histórico. Puede filtrar por ciudad, estación y rango temporal.
+Usuario con acceso al dashboard analítico completo en Grafana local. Monitoriza el estado de la flota, detecta desequilibrios entre estaciones y analiza patrones de uso histórico. Puede filtrar por ciudad, estación y rango temporal.
 
 ### 3.3 Sistema IoT (actor no humano)
 Sensores físicos de los anclajes y GPS de las bicicletas que envían datos de estado vía MQTT al IoT Agent. Representados en el modelo de datos mediante la entidad `Device` (cross-sector). Sus lecturas se mapean a las entidades de negocio `GBFSStationStatus` y `GBFSFreeBikeStatus`.
@@ -64,7 +64,7 @@ Sensores físicos de los anclajes y GPS de las bicicletas que envían datos de e
 | F-06 | Planificador de ruta entre estaciones con perfil de dificultad topográfico | Ciudadano | Media |
 | F-07 | Alertas de disponibilidad en estaciones favoritas (push web) | Ciudadano | Media |
 | F-08 | Vista 3D de la ciudad con estado de estaciones superpuesto | Ciudadano | Media |
-| F-09 | Dashboard histórico parametrizado por ciudad y estación (Grafana Cloud) | Analista | Alta |
+| F-09 | Dashboard histórico parametrizado por ciudad y estación (Grafana local) | Analista | Alta |
 | F-10 | Heatmap de demanda por zonas de la ciudad | Analista | Alta |
 | F-11 | Predicción de redistribución: estaciones en riesgo de vaciarse o llenarse | Analista | Alta |
 | F-12 | Correlación clima–uso: impacto de viento y lluvia en la demanda | Analista | Alta |
@@ -118,7 +118,7 @@ Sensores físicos de los anclajes y GPS de las bicicletas que envían datos de e
 **Criterios de aceptación:**
 - El asistente responde preguntas como: "¿Dónde hay bicis cerca de la Torre de Hércules?", "¿Cuántas bicis hay en María Pita?", "¿A qué hora hay más disponibilidad?".
 - El backend (FastAPI) usa _function calling_ para consultar Orion CB antes de formular la respuesta, inyectando el contexto real en el prompt del LLM.
-- El LLM principal es **Gemma** ejecutado localmente vía **LM Studio** (privacidad, sin dependencia externa). Como alternativa configurable se soporta la **Claude API (Anthropic)**.
+- El LLM principal es **Gemma** ejecutado localmente vía **LM Studio** (privacidad, sin dependencia externa) mediante endpoint compatible con la API de OpenAI.
 - El asistente responde en menos de 5 segundos en hardware local estándar.
 - El asistente indica explícitamente cuando un dato es una predicción y no un valor en tiempo real.
 - Las respuestas incluyen nombres reales de estaciones y datos actualizados de la ciudad seleccionada.
@@ -161,10 +161,10 @@ Sensores físicos de los anclajes y GPS de las bicicletas que envían datos de e
 ### Módulo: Dashboards Analíticos
 
 **HU-08**
-> *Como analista, quiero visualizar el histórico de uso parametrizado por ciudad y estación en Grafana Cloud, para identificar patrones de demanda a lo largo del tiempo.*
+> *Como analista, quiero visualizar el histórico de uso parametrizado por ciudad y estación en Grafana local, para identificar patrones de demanda a lo largo del tiempo.*
 
 **Criterios de aceptación:**
-- Los dashboards se despliegan en el stack `smartmobilityhub` de Grafana Cloud, conectado a CrateDB mediante SQL estándar.
+- Los dashboards se despliegan en la instancia local de Grafana (stack lógico `smartmobilityhub`), conectada a CrateDB mediante SQL estándar.
 - Los dashboards están parametrizados con variables de plantilla (`$city`, `$station`) para soportar múltiples regiones sin duplicar paneles.
 - Permite filtrar por rango de fechas y franja horaria.
 - Muestra: gráficas de barras (uso por hora), líneas (evolución diaria) y tabla de estaciones más usadas.
@@ -257,9 +257,9 @@ Device             ──refStation──────► GBFSStation
 | Context Broker | Orion-LD (NGSI-LD) | Gestión de contexto y estado actual de todas las entidades |
 | IoT | IoT Agent MQTT (JSON) | Traducción de mensajes MQTT de sensores a entidades NGSI-LD |
 | Histórico | QuantumLeap + CrateDB | Series temporales para ML, Grafana y análisis con Pandas |
-| Dashboards | Grafana Cloud (`smartmobilityhub`) | Visualización analítica histórica multi-ciudad parametrizada |
+| Dashboards | Grafana local (`smartmobilityhub`) | Visualización analítica histórica multi-ciudad parametrizada |
 | Backend | FastAPI (Python) | API REST, orquestación, function calling para LLM, ML serving |
-| Asistente IA | Gemma vía LM Studio (local) + Claude API (alternativa configurable) | Asistente conversacional con contexto vivo de Orion CB |
+| Asistente IA | Gemma vía LM Studio (local, API compatible OpenAI) | Asistente conversacional con contexto vivo de Orion CB |
 | Frontend | HTML + JS + Tailwind CSS | Interfaz web responsiva con selector de ciudad |
 | Mapas 2D | Leaflet + OpenStreetMap | Mapa interactivo, heatmap y trazado de rutas |
 | Mapas 3D | ThreeJS | Vista inmersiva urbana con altimetría |

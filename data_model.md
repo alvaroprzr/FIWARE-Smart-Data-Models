@@ -141,7 +141,7 @@ Integration note for correction and ingestion in the hub:
         "is_valet_station": false,
         "is_virtual_station": false,
         "station_area": {
-          "type": "Multipolygon",
+          "type": "MultiPolygon",
           "coordinates": [
             [
               [

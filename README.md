@@ -106,7 +106,7 @@ curl -X POST http://localhost:4041/iot/services \
   -d '{
     "services": [
       {
-        "apikey": "bicicoruna-key",
+        "apikey": "bicicoruna",
         "cbroker": "http://orion-ld:1026",
         "entity_type": "station_status",
         "resource": "/bicicoruna"
@@ -161,6 +161,57 @@ curl -X POST http://localhost:1026/ngsi-ld/v1/subscriptions \
 ```
 
 Respuesta esperada: HTTP 201 (Created) con Location header.
+
+### 6.b Suscripción Orion-LD → QuantumLeap: WeatherObserved
+
+```bash
+curl -X POST http://localhost:1026/ngsi-ld/v1/subscriptions \
+  -H "Content-Type: application/ld+json" \
+  -d '{
+    "id": "urn:ngsi-ld:Subscription:weatherobserved_to_quantumleap",
+    "type": "Subscription",
+    "name": "weatherobserved_changes_to_quantumleap",
+    "description": "Notificar cambios de WeatherObserved para persistencia historica en QuantumLeap",
+    "entities": [
+      { "type": "WeatherObserved" }
+    ],
+    "watchedAttributes": ["temperature","windSpeed","dateObserved"],
+    "notification": {
+      "attributes": ["temperature","windSpeed","dateObserved","location","refDevice"],
+      "endpoint": { "uri": "http://quantumleap:8668/v2/notify", "accept": "application/json" }
+    },
+    "throttling": 5,
+    "@context": [
+      "https://smartdatamodels.org/context.jsonld",
+      "https://raw.githubusercontent.com/smart-data-models/dataModel.Weather/master/context.jsonld"
+    ]
+  }'
+```
+
+### 6.c Suscripción Orion-LD → QuantumLeap: Trip
+
+```bash
+curl -X POST http://localhost:1026/ngsi-ld/v1/subscriptions \
+  -H "Content-Type: application/ld+json" \
+  -d '{
+    "id": "urn:ngsi-ld:Subscription:trip_to_quantumleap",
+    "type": "Subscription",
+    "name": "trip_changes_to_quantumleap",
+    "description": "Notificar cambios de Trip para persistencia historica en QuantumLeap",
+    "entities": [
+      { "type": "Trip" }
+    ],
+    "watchedAttributes": ["departureTime","arrivalTime","refOrigin","refDestination"],
+    "notification": {
+      "attributes": ["departureTime","arrivalTime","refOrigin","refDestination"],
+      "endpoint": { "uri": "http://quantumleap:8668/v2/notify", "accept": "application/json" }
+    },
+    "throttling": 5,
+    "@context": [
+      "https://data.vlaanderen.be/doc/applicatieprofiel/mobiliteit-trips-en-aanbod/erkendestandaard/2020-04-23/context/mobiliteit-trips-en-aanbod-ap.jsonld"
+    ]
+  }'
+```
 
 ### 7. Cargar datos actuales de prueba
 
