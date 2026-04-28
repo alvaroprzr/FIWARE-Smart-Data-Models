@@ -12,7 +12,7 @@ volumes:
 
 services:
   mongodb:
-    image: mongo:6.0
+    image: mongo:4.4
     container_name: mongodb
     networks:
       - fiware_net
@@ -107,7 +107,8 @@ services:
     command: >
       crate
       -Ccluster.name=smartmobilityhub
-      -Ccluster.initial_master_nodes=crate@cratedb
+      -Cnode.name=cratedb
+      -Ccluster.initial_master_nodes=cratedb
       -Cgateway.expected_data_nodes=1
       -Cgateway.recover_after_data_nodes=1
       -Cpath.data=/data
@@ -121,7 +122,7 @@ services:
     restart: unless-stopped
 
   quantumleap:
-    image: orchestracities/quantumleap:0.9.0
+    image: orchestracities/quantumleap:latest
     container_name: quantumleap
     depends_on:
       cratedb:
