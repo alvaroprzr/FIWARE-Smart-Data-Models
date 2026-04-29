@@ -122,7 +122,7 @@ services:
     restart: unless-stopped
 
   quantumleap:
-    image: orchestracities/quantumleap:latest
+    image: orchestracities/quantumleap:1.0.0
     container_name: quantumleap
     depends_on:
       cratedb:
@@ -180,6 +180,7 @@ services:
     volumes:
       - grafana_data:/var/lib/grafana
       - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards
     restart: unless-stopped
 
   frontend:
@@ -190,7 +191,7 @@ services:
     networks:
       - fiware_net
     ports:
-      - "8080:80"
+      - "808:80"
     volumes:
       - ./frontend:/usr/share/nginx/html:ro
     restart: unless-stopped

@@ -260,9 +260,9 @@ cd backend && pip freeze > ../requirements.txt
 
 - **Orion-LD 1.6.0** — Context Broker NGSI-LD nativo
 - **IoT Agent MQTT 3.4.0** — Adaptador de protocolo MQTT → NGSI-LD
-- **QuantumLeap 0.9.0** — Motor de series temporales
+- **QuantumLeap 1.0.0** — Motor de series temporales
 - **CrateDB 5.4.3** — Base de datos analítica para históricos
-- **MongoDB 6.0** — Almacén persistente de Orion-LD
+- **MongoDB 4.4** — Almacén persistente de Orion-LD
 - **Mosquitto 2.0** — Broker MQTT
 - **FastAPI** — Backend Python para orquestación, consultas y IA
 - **Gemma 2B/7B (LM Studio)** — LLM local para asistente conversacional
