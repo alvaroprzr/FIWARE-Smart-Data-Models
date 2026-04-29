@@ -187,7 +187,7 @@ def engineer_features(df: pd.DataFrame) -> tuple[pd.DataFrame, LabelEncoder]:
     return df[feature_cols], encoder
 
 
-def create_targets(df: pd.DataFrame) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def create_targets(df: pd.DataFrame) -> pd.DataFrame:
     """Create target variables by time-shifting num_bikes_available.
     
     Rows are grouped by station_id, and within each station, the
@@ -201,7 +201,7 @@ def create_targets(df: pd.DataFrame) -> tuple[np.ndarray, np.ndarray, np.ndarray
         df: DataFrame with num_bikes_available column (and station_id for grouping).
         
     Returns:
-        Tuple of (features, target_30, target_60) as numpy arrays.
+        DataFrame with target_30 and target_60 columns and NaN rows removed.
     """
     df = df.copy()
     
@@ -224,7 +224,7 @@ def create_targets(df: pd.DataFrame) -> tuple[np.ndarray, np.ndarray, np.ndarray
     print(f"  - Dropped {dropped} boundary rows (NaN targets)")
     print(f"  - {len(df):,} complete training instances remaining")
     
-    return df["target_30"].values, df["target_60"].values
+    return df
 
 
 def train_models(
@@ -321,20 +321,22 @@ def main() -> None:
         df_raw = fetch_training_data(conn)
         conn.close()
         
-        # Step 3: Engineer features
-        print("\n[3/5] Engineering features...")
-        X, encoder = engineer_features(df_raw)
-        
-        # Step 4: Create targets
-        print("\n[4/5] Creating targets (time-shifted)...")
-        y_30, y_60 = create_targets(df_raw)
+        # Step 3: Create targets and clean dataset before splitting X/y
+        print("\n[3/6] Creating targets (time-shifted)...")
+        df_ready = create_targets(df_raw)
+
+        # Step 4: Engineer features on cleaned dataset to keep X/y aligned
+        print("\n[4/6] Engineering features...")
+        X, encoder = engineer_features(df_ready)
+        y_30 = df_ready["target_30"].values
+        y_60 = df_ready["target_60"].values
         
         # Step 5: Train and save models
-        print("\n[5/5] Training RandomForest models...")
+        print("\n[5/6] Training RandomForest models...")
         model_30, model_60 = train_models(X.values, y_30, y_60)
         
         # Step 6: Persist artifacts
-        print("\n[6/5] Saving artifacts...")
+        print("\n[6/6] Saving artifacts...")
         save_artifacts(model_30, model_60, encoder)
         
         print("\n" + "=" * 70)
