@@ -1,8 +1,8 @@
 {
-  "uid": "bikecoruna-overview",
-  "title": "BiciCoruna Overview",
-  "tags": ["smart-mobility-hub", "acoruna"],
-  "timezone": "browser",
+  "uid": "bikecoruna-smart",
+  "title": "BiciCoruña Smart",
+  "tags": ["smart-mobility-hub", "acoruna", "bicicoruna"],
+  "timezone": "Europe/Madrid",
   "schemaVersion": 39,
   "version": 1,
   "refresh": "30s",
@@ -14,7 +14,7 @@
     "list": [
       {
         "name": "city",
-        "type": "query",
+        "type": "custom",
         "label": "City",
         "hide": 0,
         "query": "acoruna",
@@ -22,14 +22,25 @@
           "selected": true,
           "text": "acoruna",
           "value": "acoruna"
-        }
+        },
+        "options": [
+          {
+            "selected": true,
+            "text": "acoruna",
+            "value": "acoruna"
+          }
+        ]
       },
       {
         "name": "station",
         "type": "query",
         "label": "Station",
         "hide": 0,
-        "query": "ACORUNA-001",
+        "datasource": "CrateDB",
+        "query": "SELECT DISTINCT station_id FROM etstation_status ORDER BY 1",
+        "refresh": 2,
+        "multi": false,
+        "includeAll": false,
         "current": {
           "selected": true,
           "text": "ACORUNA-001",
@@ -41,16 +52,187 @@
   "panels": [
     {
       "id": 1,
-      "title": "Bikes available",
+      "title": "Disponibilidad por estación (24h)",
       "type": "timeseries",
-      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 0 },
+      "datasource": "CrateDB",
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 0 },
       "targets": [
         {
           "refId": "A",
           "format": "time_series",
-          "rawSql": "SELECT date_trunc('hour', ts) AS time, avg(num_bikes_available) AS value FROM station_status_timeseries WHERE station_id = '$station' AND $__timeFilter(ts) GROUP BY 1 ORDER BY 1"
+          "rawSql": "SELECT time, num_bikes_available, station_id FROM etstation_status WHERE station_id = '$station' AND time > NOW() - INTERVAL '24 hours' ORDER BY time"
         }
-      ]
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "axisPlacement": "auto"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 2,
+      "title": "Viajes por hora del día",
+      "type": "barchart",
+      "datasource": "CrateDB",
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT EXTRACT(HOUR FROM started_at) as hora, COUNT(*) as viajes FROM trips GROUP BY hora ORDER BY hora"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "orientation": "auto",
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0,
+        "showValue": "never",
+        "groupWidth": 0.7,
+        "barWidth": 0.97,
+        "stacking": "none",
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        }
+      }
+    },
+    {
+      "id": 3,
+      "title": "num_bikes_available por estación y hora (7 días)",
+      "type": "timeseries",
+      "datasource": "CrateDB",
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 9 },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT DATE_TRUNC('hour', time) as hora, station_id, AVG(num_bikes_available) as media FROM etstation_status WHERE time > NOW() - INTERVAL '7 days' GROUP BY hora, station_id ORDER BY hora"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {}
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 4,
+      "title": "CO₂ ahorrado total (kg)",
+      "type": "stat",
+      "datasource": "CrateDB",
+      "gridPos": { "h": 9, "w": 6, "x": 12, "y": 9 },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT ROUND(SUM(distance_meters)/1000.0 * 0.21, 1) as co2_kg FROM trips"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "kg",
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 5,
+      "title": "Correlación viento vs viajes (por hora)",
+      "type": "timeseries",
+      "datasource": "CrateDB",
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 18 },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT DATE_TRUNC('hour', started_at) as hora, COUNT(*) as viajes FROM trips GROUP BY hora ORDER BY hora"
+        },
+        {
+          "refId": "B",
+          "format": "time_series",
+          "rawSql": "SELECT time, wind_speed FROM etweatherobserved ORDER BY time"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "axisPlacement": "left"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "wind_speed"
+            },
+            "properties": [
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              },
+              {
+                "id": "custom.axisLabel",
+                "value": "wind_speed"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
     }
   ]
 }

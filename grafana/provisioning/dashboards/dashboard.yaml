@@ -1,9 +1,9 @@
 apiVersion: 1
 
 providers:
-  - name: Smart Mobility Hub
+  - name: BiciCoruña
     orgId: 1
-    folder: BiciCoruna
+    folder: Smart Mobility Hub
     type: file
     disableDeletion: false
     editable: true
