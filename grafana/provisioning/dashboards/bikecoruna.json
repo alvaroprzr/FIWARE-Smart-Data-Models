@@ -118,45 +118,31 @@
     {
       "id": 3,
       "title": "num_bikes_available por estación y hora (7 días)",
-      "type": "heatmap",
+      "type": "timeseries",
       "datasource": "CrateDB",
       "gridPos": { "h": 9, "w": 12, "x": 0, "y": 9 },
       "targets": [
         {
           "refId": "A",
-          "format": "table",
+          "format": "time_series",
           "rawSql": "SELECT DATE_TRUNC('hour', time) as hora, station_id, AVG(num_bikes_available) as media FROM etstation_status WHERE time > NOW() - INTERVAL '7 days' GROUP BY hora, station_id ORDER BY hora"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "custom": {
-            "scaleDistribution": {
-              "type": "linear"
-            }
-          }
+          "custom": {}
         },
         "overrides": []
       },
       "options": {
-        "calculate": false,
-        "cellGap": 1,
-        "color": {
-          "mode": "spectrum"
-        },
-        "exemplars": {
-          "color": "rgba(255,0,255,0.7)"
-        },
-        "filterValues": {
-          "le": 1e-9
-        },
         "legend": {
-          "show": true
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
         },
-        "rowsFrame": "tsSeries",
-        "yAxis": {
-          "axisPlacement": "left",
-          "reverse": false
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
         }
       }
     },
@@ -198,7 +184,7 @@
       "title": "Correlación viento vs viajes (por hora)",
       "type": "timeseries",
       "datasource": "CrateDB",
-      "gridPos": { "h": 9, "w": 18, "x": 0, "y": 18 },
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 18 },
       "targets": [
         {
           "refId": "A",

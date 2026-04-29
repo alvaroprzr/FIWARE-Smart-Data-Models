@@ -7,8 +7,6 @@ datasources:
     url: cratedb:5432
     database: doc
     user: crate
-    secureJsonData:
-      password: ""
     jsonData:
       sslmode: disable
       postgresVersion: 1200
