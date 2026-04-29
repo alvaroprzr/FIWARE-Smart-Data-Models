@@ -2,19 +2,54 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Query
+from typing import Any
+
+from fastapi import APIRouter, HTTPException, Query
 
 from clients.orion import OrionClient
+from clients.cratedb import CrateDBClient
 
 router = APIRouter()
 
 
-@router.get("/current")
-async def current_weather(city: str = Query(default="acoruna")) -> dict[str, object]:
-    # TODO: expose the WeatherObserved entity and the latest weather-derived analytics.
+@router.get("")
+async def current_weather(city: str = Query(default="acoruna")) -> dict[str, Any]:
+    """Return latest WeatherObserved attributes for `city`."""
     client = OrionClient()
     try:
-        entities = await client.list_entities({"type": "WeatherObserved", "q": f"city=={city}"})
-    except Exception:
-        entities = []
-    return {"city": city, "items": entities}
+        entities = await client.get_entities("WeatherObserved", city)
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Orion-LD is not available for weather lookup.") from exc
+
+    if not entities:
+        return {"city": city, "items": []}
+
+    ent = entities[0]
+    # Extract common weather attributes
+    def _val(k: str):
+        v = ent.get(k)
+        if isinstance(v, dict):
+            return v.get("value")
+        return v
+
+    return {
+        "city": city,
+        "windSpeed": _val("windSpeed"),
+        "temperature": _val("temperature"),
+        "precipitation": _val("precipitation"),
+        "weatherType": _val("weatherType"),
+    }
+
+
+@router.get("/trips/heatmap")
+async def trips_heatmap(city: str = Query(default="acoruna")) -> list[dict[str, Any]]:
+    """Return aggregated trips per origin station for heatmap visualization."""
+    # CrateDB access is synchronous; call in thread from routes that import this router.
+    client = CrateDBClient()
+    try:
+        rows = await __import__("asyncio").get_event_loop().run_in_executor(None, client.get_trips_heatmap)
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="CrateDB is not available for analytics.") from exc
+
+    # Rows already contain station_id, trip_count, avg_distance, intensity
+    return rows
