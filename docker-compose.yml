@@ -86,6 +86,7 @@ services:
       - IOTA_TIMESTAMP=true
       - IOTA_LOG_LEVEL=INFO
       - IOTA_CB_NGSI_VERSION=ld
+      - IOTA_AMQP_DISABLED=true   # Disable AMQP support to avoid unnecessary dependencies
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:4041/iot/about || exit 1"]
       interval: 20s
