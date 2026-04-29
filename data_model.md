@@ -10,6 +10,7 @@ This document defines the NGSI-LD data model used by Smart Mobility Hub. It keep
 - When a business name does not match the official entity name, the document keeps the business name and states the official type explicitly.
 - For GBFS feeds, the official payload shape is feed oriented. In the hub, the station and bike identifiers are also materialized as NGSI-LD Relationships where the PRD requires them.
 - Contexts are copied exactly from the official examples and specifications.
+- Forecast outputs (30/60 min) are derived analytics produced by backend ML and are not modeled as additional NGSI-LD entities.
 
 ## Business name to official entity map
 

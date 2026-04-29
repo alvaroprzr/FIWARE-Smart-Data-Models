@@ -108,7 +108,8 @@ Sensores físicos de los anclajes y GPS de las bicicletas que envían datos de e
 - La predicción se muestra como número estimado de bicis disponibles con un intervalo de confianza.
 - El modelo considera: histórico de uso, hora del día, día de la semana, `windSpeed` y `precipitation` de `WeatherObserved`. El viento es la variable climática principal para A Coruña.
 - Si la predicción indica disponibilidad baja (<2 bicis), se muestra una advertencia visual.
-- El modelo se entrena sobre datos históricos almacenados en QuantumLeap / CrateDB mediante Pandas/Polars.
+- El modelo se entrena sobre datos históricos almacenados en QuantumLeap / CrateDB mediante Pandas + scikit-learn (RandomForest), con horizontes de 30 y 60 minutos.
+- Si los modelos entrenados no están disponibles, el backend responde con un fallback de media histórica por estación y hora para mantener continuidad del servicio.
 
 ---
 

@@ -268,11 +268,11 @@ flowchart LR
 - Origen: Frontend chat.
 - Destino: FastAPI.
 - Protocolo: HTTP.
-- Metodo: `POST /chat`.
+- Metodo: `POST /api/chat`.
 - Formato: JSON (`{"city":"acoruna","message":"..."}`).
 
 2. Function calling en FastAPI:
-- FastAPI evalua intencion y decide tools (ejemplo: `get_station_status`, `get_prediction`).
+- FastAPI evalua intencion y decide tools (ejemplo: `get_station_status`, `get_weather`, `get_station_forecast`).
 - Protocolo interno: llamada a funciones Python.
 
 3. Recuperacion de contexto operativo:
