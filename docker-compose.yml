@@ -191,7 +191,7 @@ services:
     networks:
       - fiware_net
     ports:
-      - "808:80"
+      - "8081:80"
     volumes:
       - ./frontend:/usr/share/nginx/html:ro
     restart: unless-stopped
