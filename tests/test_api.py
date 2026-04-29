@@ -89,7 +89,11 @@ class TestStations:
             mock_orion_cls.return_value = mock_orion
             # Mock the predict function since forecast calls ML predictor
             with patch("backend.routers.stations.predict") as mock_predict:
-                mock_predict.return_value = (8.5, 12.3)  # (t30, t60) tuple
+                mock_predict.return_value = {
+                    "t30": {"value": 8.5, "low": 6.0, "high": 11.0},
+                    "t60": {"value": 12.3, "low": 9.0, "high": 15.0},
+                    "model_used": "fallback"
+                }
                 
                 response = await client.get("/api/stations/ACORUNA-001/forecast")
                 assert response.status_code == 200
