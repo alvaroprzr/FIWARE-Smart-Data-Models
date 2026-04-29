@@ -257,9 +257,51 @@ cd backend && pip freeze > ../requirements.txt
 ---
 
 ## Stack tecnológico
-
 - **Orion-LD 1.6.0** — Context Broker NGSI-LD nativo
-- **IoT Agent MQTT 3.4.0** — Adaptador de protocolo MQTT → NGSI-LD
+## Testing del Backend
+
+El backend incluye una suite completa de tests con pytest-asyncio que valida todos los endpoints API contra especificaciones NGSI-LD. Los tests usan mocks para aislar completamente los servicios externos (Orion, CrateDB, LM Studio).
+
+### Ejecutar los tests
+
+Desde el directorio raíz del proyecto:
+
+```bash
+# Instalar dependencias de testing (incluidas en requirements.txt)
+cd backend && pip install -r requirements.txt
+
+# Ejecutar tests con verbose output
+pytest ../tests -v
+
+# Ejecutar tests con short traceback (más legible)
+pytest ../tests -v --tb=short
+
+# Ejecutar un test específico
+pytest ../tests/test_api.py::TestStations::test_get_stations -v
+```
+
+### Cobertura de tests
+
+La suite incluye **7 tests** que cubren:
+
+| Test | Endpoint | Descripción |
+|------|----------|-------------|
+| `test_health` | `GET /health` | Health check del backend |
+| `test_get_stations` | `GET /api/stations?city=acoruna` | Lista de estaciones |
+| `test_get_station_status` | `GET /api/stations/{id}/status` | Estado dinámico de estación |
+| `test_get_forecast` | `GET /api/stations/{id}/forecast` | Predicción de demanda (30/60 min) |
+| `test_chat` | `POST /api/chat` | Asistente IA conversacional |
+| `test_weather` | `GET /api/weather?city=acoruna` | Observaciones meteorológicas |
+| `test_heatmap` | `GET /api/weather/trips/heatmap` | Heatmap de demanda de viajes |
+
+### Mocking de servicios
+
+- **OrionClient**: Devuelve datos NGSI-LD simulados (estaciones, estado, meteorología)
+- **LLMClient**: Devuelve respuestas de chat sin tool_calls
+- **CrateDBClient**: Devuelve listas vacías de heatmap
+
+Todos los tests se ejecutan **sin contactar servicios externos**, garantizando velocidad y determinismo.
+
 - **QuantumLeap 1.0.0** — Motor de series temporales
 - **CrateDB 5.4.3** — Base de datos analítica para históricos
 - **MongoDB 4.4** — Almacén persistente de Orion-LD
