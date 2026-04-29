@@ -114,6 +114,50 @@
       inset: 0;
     }
 
+    .three-tooltip {
+      position: absolute;
+      z-index: 30;
+      pointer-events: none;
+      transform: translate(-50%, calc(-100% - 12px));
+      min-width: 12rem;
+      max-width: 16rem;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 1rem;
+      background: rgba(8, 15, 28, 0.94);
+      box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+      padding: 0.8rem 0.95rem;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 140ms ease, visibility 140ms ease;
+    }
+
+    .three-tooltip.is-visible {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .three-tooltip-name {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: #ecf3ff;
+      line-height: 1.25;
+    }
+
+    .three-tooltip-value {
+      margin-top: 0.25rem;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.95rem;
+      color: #34d399;
+    }
+
+    .three-tooltip-note {
+      margin-top: 0.1rem;
+      font-size: 0.72rem;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #8ca0be;
+    }
+
     .layer-hidden {
       display: none !important;
     }
@@ -307,6 +351,7 @@
         <div class="relative h-full min-h-[64vh] w-full">
           <div id="map-view" class="map-layer"></div>
           <div id="three-view" class="three-layer layer-hidden"></div>
+          <div id="three-tooltip" class="three-tooltip" aria-hidden="true"></div>
         </div>
       </section>
     </main>
@@ -336,6 +381,7 @@
   <script src="https://cdn.jsdelivr.net/npm/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
   <script>
     (() => {
       const API_BASE = window.__SMART_MOBILITY_API_BASE__ || (window.location.protocol === 'file:' || window.location.origin === 'null' ? 'http://localhost:8000' : '');
@@ -362,6 +408,7 @@
         markers: new Map(),
         co2Chart: null,
         three: null,
+        threeTooltipVisible: false,
         renderToken: 0,
         lastGoodDataAt: null,
         popupListenerAttached: false,
@@ -393,6 +440,7 @@
         refreshBtn: document.getElementById('refresh-btn'),
         mapView: document.getElementById('map-view'),
         threeView: document.getElementById('three-view'),
+        threeTooltip: document.getElementById('three-tooltip'),
         chatPanel: document.getElementById('chat-panel'),
         chatToggle: document.getElementById('chat-toggle'),
         chatForm: document.getElementById('chat-form'),
@@ -438,9 +486,15 @@
       }
 
       function getAvailabilityColor(value) {
-        if (value > 5) return '#34d399';
-        if (value > 0) return '#fbbf24';
-        return '#fb7185';
+        if (value > 5) return '#22c55e';
+        if (value > 0) return '#f59e0b';
+        return '#ef4444';
+      }
+
+      function getAvailabilityHex(value) {
+        if (value > 5) return 0x22c55e;
+        if (value > 0) return 0xf59e0b;
+        return 0xef4444;
       }
 
       function relativeTime(value) {
@@ -478,6 +532,9 @@
         dom.mapView.classList.toggle('layer-hidden', mode !== 'map');
         dom.threeView.classList.toggle('layer-hidden', mode !== '3d');
         dom.modeToggle.textContent = mode === 'map' ? 'Vista 3D' : 'Vista Mapa';
+        if (mode !== '3d') {
+          hideThreeTooltip();
+        }
         if (mode === 'map' && state.map) {
           requestAnimationFrame(() => state.map.invalidateSize());
         }
@@ -781,6 +838,16 @@
         dom.threeView.innerHTML = '';
         dom.threeView.appendChild(renderer.domElement);
 
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.06;
+        controls.enableZoom = true;
+        controls.enablePan = true;
+        controls.rotateSpeed = 0.75;
+        controls.panSpeed = 0.8;
+        controls.target.set(0, 8, 0);
+        controls.update();
+
         const ambient = new THREE.AmbientLight(0xffffff, 0.72);
         scene.add(ambient);
 
@@ -799,8 +866,69 @@
         grid.position.y = 0.02;
         scene.add(grid);
 
-        state.three = { scene, camera, renderer, bars: new Map(), floor, grid, frame: null };
+        const raycaster = new THREE.Raycaster();
+        const pointer = new THREE.Vector2();
+
+        state.three = { scene, camera, renderer, controls, raycaster, pointer, bars: new Map(), floor, grid, frame: null };
         window.addEventListener('resize', resizeThreeScene);
+        renderer.domElement.addEventListener('click', handleThreeClick);
+      }
+
+      function hideThreeTooltip() {
+        if (!dom.threeTooltip) return;
+        dom.threeTooltip.classList.remove('is-visible');
+        dom.threeTooltip.setAttribute('aria-hidden', 'true');
+        delete dom.threeTooltip.dataset.stationId;
+        state.threeTooltipVisible = false;
+      }
+
+      function showThreeTooltip(stationId, station, bikes) {
+        if (!dom.threeTooltip || !station) return;
+        const name = getStationName(station);
+        dom.threeTooltip.dataset.stationId = stationId;
+        dom.threeTooltip.innerHTML = `
+          <div class="three-tooltip-name">${escapeHtml(name)}</div>
+          <div class="three-tooltip-value">${bikes} bicis disponibles</div>
+          <div class="three-tooltip-note">num_bikes_available</div>
+        `;
+        dom.threeTooltip.classList.add('is-visible');
+        dom.threeTooltip.setAttribute('aria-hidden', 'false');
+        state.threeTooltipVisible = true;
+      }
+
+      function positionThreeTooltip(mesh) {
+        if (!state.three || !dom.threeTooltip || !mesh) return;
+        const rect = dom.threeView.getBoundingClientRect();
+        const projected = mesh.position.clone();
+        projected.project(state.three.camera);
+        const x = ((projected.x + 1) / 2) * rect.width;
+        const y = ((-projected.y + 1) / 2) * rect.height;
+        dom.threeTooltip.style.left = `${x}px`;
+        dom.threeTooltip.style.top = `${y}px`;
+      }
+
+      function handleThreeClick(event) {
+        if (!state.three || !dom.threeView) return;
+        const rect = dom.threeView.getBoundingClientRect();
+        const x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+        const y = -(((event.clientY - rect.top) / rect.height) * 2 - 1);
+        state.three.pointer.set(x, y);
+        state.three.raycaster.setFromCamera(state.three.pointer, state.three.camera);
+        const intersects = state.three.raycaster.intersectObjects(Array.from(state.three.bars.values()), false);
+        if (!intersects.length) {
+          hideThreeTooltip();
+          return;
+        }
+
+        const mesh = intersects[0].object;
+        const station = state.stationById.get(mesh.userData.id);
+        if (!station) {
+          hideThreeTooltip();
+          return;
+        }
+
+        showThreeTooltip(mesh.userData.id, station, numberValue(mesh.userData.bikes, 0));
+        positionThreeTooltip(mesh);
       }
 
       function resizeThreeScene() {
@@ -810,21 +938,24 @@
         state.three.camera.aspect = width / height;
         state.three.camera.updateProjectionMatrix();
         state.three.renderer.setSize(width, height, false);
+        state.three.controls?.update();
+        if (state.threeTooltipVisible) {
+          const tooltipId = dom.threeTooltip?.dataset.stationId;
+          const tooltipMesh = tooltipId ? state.three.bars.get(tooltipId) : null;
+          if (tooltipMesh) {
+            positionThreeTooltip(tooltipMesh);
+          }
+        }
       }
 
-      function renderThreeScene() {
+      function syncThreeStations() {
         if (!state.three) return;
-        const { scene } = state.three;
-
-        for (const [, mesh] of state.three.bars.entries()) {
-          scene.remove(mesh);
-        }
-        state.three.bars.clear();
-
+        const { scene, bars } = state.three;
         const config = CITY_CONFIG[state.city] || CITY_CONFIG.acoruna;
         const centerLat = config.center[0];
         const centerLon = config.center[1];
         const scale = 7000;
+        const nextIds = new Set();
 
         state.stations.forEach((station) => {
           const id = getStationId(station);
@@ -833,25 +964,106 @@
           const status = stationStatusFor(id);
           const bikes = numberValue(status.num_bikes_available, 0);
           const docks = numberValue(status.num_docks_available, 0);
-          const height = Math.max(1.6, 3 + bikes * 0.45);
-          const geom = new THREE.BoxGeometry(2.2, height, 2.2);
-          const material = new THREE.MeshStandardMaterial({
-            color: getAvailabilityColor(bikes),
-            emissive: id === state.selectedStationId ? 0x1f2937 : 0x000000,
-            emissiveIntensity: id === state.selectedStationId ? 0.8 : 0,
-            roughness: 0.45,
-            metalness: 0.08,
-          });
-          const mesh = new THREE.Mesh(geom, material);
-          mesh.position.set((lon - centerLon) * scale, height / 2, (lat - centerLat) * -scale);
-          mesh.userData = { id, bikes, docks };
-          scene.add(mesh);
-          state.three.bars.set(id, mesh);
+          const targetHeight = Math.max(1.6, 3 + bikes * 0.45);
+          const targetColor = getAvailabilityHex(bikes);
+          nextIds.add(id);
+
+          let mesh = bars.get(id);
+          if (!mesh) {
+            const material = new THREE.MeshStandardMaterial({
+              color: targetColor,
+              emissive: 0x000000,
+              emissiveIntensity: 0,
+              roughness: 0.45,
+              metalness: 0.08,
+            });
+            mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), material);
+            mesh.position.set((lon - centerLon) * scale, targetHeight / 2, (lat - centerLat) * -scale);
+            mesh.scale.set(2.2, targetHeight, 2.2);
+            mesh.userData = {
+              id,
+              stationName: getStationName(station),
+              bikes,
+              docks,
+              currentHeight: targetHeight,
+              targetHeight,
+              currentColor: targetColor,
+              targetColor,
+            };
+            scene.add(mesh);
+            bars.set(id, mesh);
+          }
+
+          mesh.position.x = (lon - centerLon) * scale;
+          mesh.position.z = (lat - centerLat) * -scale;
+          mesh.userData.stationName = getStationName(station);
+          mesh.userData.bikes = bikes;
+          mesh.userData.docks = docks;
+          mesh.userData.targetHeight = targetHeight;
+          mesh.userData.targetColor = targetColor;
+          if (mesh.userData.currentHeight == null) {
+            mesh.userData.currentHeight = targetHeight;
+          }
+          if (mesh.userData.currentColor == null) {
+            mesh.userData.currentColor = targetColor;
+          }
+          mesh.scale.x = 2.2;
+          mesh.scale.z = 2.2;
+          mesh.material.color.setHex(targetColor);
         });
+
+        for (const [id, mesh] of bars.entries()) {
+          if (!nextIds.has(id)) {
+            scene.remove(mesh);
+            mesh.geometry.dispose();
+            mesh.material.dispose();
+            bars.delete(id);
+          }
+        }
+
+        const tooltipId = dom.threeTooltip?.dataset.stationId;
+        if (tooltipId && !bars.has(tooltipId)) {
+          hideThreeTooltip();
+        }
+      }
+
+      function renderThreeScene() {
+        if (!state.three) return;
+        syncThreeStations();
 
         if (!state.three.frame) {
           const tick = () => {
             state.three.frame = window.requestAnimationFrame(tick);
+            state.three.controls?.update();
+
+            for (const [id, mesh] of state.three.bars.entries()) {
+              const currentHeight = numberValue(mesh.userData.currentHeight, mesh.userData.targetHeight || 1.6);
+              const targetHeight = numberValue(mesh.userData.targetHeight, currentHeight);
+              const nextHeight = currentHeight + (targetHeight - currentHeight) * 0.05;
+              mesh.userData.currentHeight = nextHeight;
+              mesh.scale.y = nextHeight;
+              mesh.position.y = nextHeight / 2;
+
+              const currentColor = mesh.material.color.getHex();
+              const targetColor = numberValue(mesh.userData.targetColor, currentColor);
+              if (currentColor !== targetColor) {
+                mesh.material.color.setHex(targetColor);
+                mesh.userData.currentColor = targetColor;
+              }
+
+              const isSelected = id === state.selectedStationId;
+              mesh.material.emissive.setHex(isSelected ? 0x1f2937 : 0x000000);
+              mesh.material.emissiveIntensity = isSelected ? 0.8 : 0;
+            }
+
+            if (state.threeTooltipVisible) {
+              const tooltipId = dom.threeTooltip?.dataset.stationId;
+              const tooltipMesh = tooltipId ? state.three.bars.get(tooltipId) : null;
+              if (tooltipMesh) {
+                positionThreeTooltip(tooltipMesh);
+              }
+            }
+
             state.three.renderer.render(state.three.scene, state.three.camera);
           };
           tick();
@@ -863,6 +1075,13 @@
         for (const [id, mesh] of state.three.bars.entries()) {
           mesh.material.emissive.setHex(id === state.selectedStationId ? 0x1f2937 : 0x000000);
           mesh.material.emissiveIntensity = id === state.selectedStationId ? 0.8 : 0;
+        }
+        if (state.threeTooltipVisible) {
+          const tooltipId = dom.threeTooltip?.dataset.stationId;
+          const tooltipMesh = tooltipId ? state.three.bars.get(tooltipId) : null;
+          if (tooltipMesh) {
+            positionThreeTooltip(tooltipMesh);
+          }
         }
       }
 
@@ -913,6 +1132,7 @@
         updateMarkers();
         updateSidebar(state.stationById.get(state.selectedStationId) || state.stations[0] || null);
         updateCo2Chart();
+        syncThreeStations();
         renderThreeScene();
         syncThreeHighlight();
       }
