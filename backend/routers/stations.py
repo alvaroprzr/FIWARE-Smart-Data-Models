@@ -2,14 +2,19 @@
 
 from __future__ import annotations
 
+import logging
+from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
 
 from clients.orion import OrionClient
-from ml.predictor import PredictionInput, predict_availability
+from ml.predictor import predict
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
 
 
 @router.get("")
@@ -64,38 +69,77 @@ async def get_station_status(station_id: str) -> dict[str, Any]:
     return {"station_id": station_id, **attrs}
 
 
-@router.get("/{station_id}/prediction")
-async def station_prediction(station_id: str) -> dict[str, Any]:
-    """Return short-term predictions (t30, t60) for a station.
+@router.get("/{station_id}/forecast")
+async def get_station_forecast(station_id: str) -> dict[str, Any]:
+    """Return demand forecast (t+30min, t+60min) for a station.
 
-    Gathers current status and contextual weather, then calls the predictor.
+    Gathers current conditions (time, weather) and calls the predictor model.
+    Uses pre-trained RandomForest models if available; falls back to
+    per-station/per-hour historical means otherwise.
+
+    Returns:
+        {
+            "station_id": str,
+            "t30": {"value": float, "low": float, "high": float},
+            "t60": {"value": float, "low": float, "high": float},
+            "model_used": "random_forest" | "fallback",
+            "forecast_time": ISO datetime
+        }
     """
     orion = OrionClient()
+
+    # Validate station exists (best effort)
     status_id = f"urn:ngsi-ld:station_status:acoruna:{station_id}"
     try:
         status = await orion.get_entity(status_id)
     except Exception as exc:
-        raise HTTPException(status_code=503, detail="Orion-LD is not available for prediction lookup.") from exc
+        logger.warning(f"Station {station_id} lookup failed: {exc}")
+        raise HTTPException(
+            status_code=404,
+            detail=f"Station {station_id} not found or Orion-LD unavailable.",
+        ) from exc
 
-    # Best-effort extraction of current bikes
-    current_bikes = None
-    if isinstance(status.get("num_bikes_available"), dict):
-        current_bikes = status.get("num_bikes_available", {}).get("value")
-    else:
-        current_bikes = status.get("num_bikes_available")
-
-    # Get weather (latest)
+    # Get current weather
     try:
         weather_entities = await orion.get_entities("WeatherObserved", "acoruna")
         weather = weather_entities[0] if weather_entities else {}
-        wind = weather.get("windSpeed") or (weather.get("windSpeed", {}).get("value") if isinstance(weather.get("windSpeed"), dict) else None)
     except Exception:
-        wind = None
+        weather = {}
+        logger.warning("Could not fetch weather data from Orion-LD")
 
-    # Build predictor input
-    inp = PredictionInput(station_id=station_id, horizon_minutes=30, num_bikes_available=int(current_bikes or 0))
-    p30 = predict_availability(inp)
-    inp60 = PredictionInput(station_id=station_id, horizon_minutes=60, num_bikes_available=int(current_bikes or 0))
-    p60 = predict_availability(inp60)
+    # Extract weather attributes (handle NGSI-LD value wrappers)
+    def extract_value(entity: dict, key: str, default: float = 0.0) -> float:
+        """Extract numeric value from NGSI-LD entity (handles both raw and wrapped formats)."""
+        val = entity.get(key)
+        if val is None:
+            return default
+        if isinstance(val, dict) and "value" in val:
+            return float(val["value"])
+        return float(val)
 
-    return {"station_id": station_id, "t30": p30.predicted_num_bikes_available, "t60": p60.predicted_num_bikes_available, "windSpeed": wind}
+    wind_speed = extract_value(weather, "windSpeed", 0.0)
+    precipitation = extract_value(weather, "precipitation", 0.0)
+
+    # Get current time features
+    now = datetime.now()
+    hour = now.hour
+    weekday = now.weekday()
+
+    # Call predictor with current features
+    try:
+        forecast = predict(
+            station_id=station_id,
+            hour=hour,
+            weekday=weekday,
+            wind_speed=wind_speed,
+            precipitation=precipitation,
+        )
+        forecast["station_id"] = station_id
+        forecast["forecast_time"] = now.isoformat()
+        return forecast
+    except Exception as e:
+        logger.error(f"Prediction failed for {station_id}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Forecast generation failed.",
+        ) from e
