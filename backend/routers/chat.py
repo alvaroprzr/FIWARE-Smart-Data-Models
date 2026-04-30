@@ -23,9 +23,9 @@ class ChatResponse(BaseModel):
     response: str
 
 
-async def _tool_get_station_status(station_id: str) -> dict[str, Any]:
+async def _tool_get_station_status(station_id: str, city: str = "acoruna") -> dict[str, Any]:
     orion = OrionClient()
-    eid = f"urn:ngsi-ld:station_status:acoruna:{station_id}"
+    eid = f"urn:ngsi-ld:station_status:{city}:{station_id}"
     return await orion.get_entity(eid)
 
 
@@ -53,7 +53,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
         },
     ]
 
-    system_msg = {"role": "system", "content": "You are the Smart Mobility Hub assistant for A Coruna. Use provided tools when asked to fetch live data."}
+    system_msg = {"role": "system", "content": f"You are the Smart Mobility Hub assistant for {request.city}. Use provided tools when asked to fetch live data."}
     user_msg = {"role": "user", "content": request.message}
 
     # First LLM call
@@ -85,7 +85,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
             station_id = args.get("station_id")
             if not station_id:
                 raise HTTPException(status_code=400, detail="tool call missing station_id")
-            result = await _tool_get_station_status(station_id)
+            result = await _tool_get_station_status(station_id, request.city)
             context_text = f"Tool get_station_status result: {json.dumps(result)}"
         elif name == "get_weather":
             city = args.get("city") or request.city

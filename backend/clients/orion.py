@@ -22,8 +22,18 @@ class OrionClient:
             "Accept": "application/ld+json",
         }
 
+    @staticmethod
+    def unwrap(attr: Any):
+        """Return plain value for NGSI-LD attribute wrappers or the input as-is.
+
+        Example: {'type':'Property','value': 12} -> 12
+        """
+        if isinstance(attr, dict) and "value" in attr:
+            return attr["value"]
+        return attr
+
     async def get_entities(self, type_: str, city: str | None = None) -> list[dict[str, Any]]:
-        params: dict[str, Any] = {"type": type_}
+        params: dict[str, Any] = {"type": type_, "options": "keyValues"}
         if city:
             # Try to match either nested station address or top-level addressLocality
             q = f"data.stations[].address.addressLocality==\"{city}\" OR address.addressLocality==\"{city}\""
@@ -34,8 +44,9 @@ class OrionClient:
             return resp.json()
 
     async def get_entity(self, entity_id: str) -> dict[str, Any]:
+        params = {"options": "keyValues"}
         async with httpx.AsyncClient(base_url=self.base_url, timeout=10.0, headers=self._headers) as client:
-            resp = await client.get(f"/ngsi-ld/v1/entities/{entity_id}")
+            resp = await client.get(f"/ngsi-ld/v1/entities/{entity_id}", params=params)
             resp.raise_for_status()
             return resp.json()
 
