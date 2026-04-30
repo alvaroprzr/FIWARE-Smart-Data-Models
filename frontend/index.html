@@ -382,965 +382,157 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-  <script>
-    (() => {
-      const API_BASE = window.__SMART_MOBILITY_API_BASE__ || (window.location.protocol === 'file:' || window.location.origin === 'null' ? 'http://localhost:8000' : '');
-      const CITY_CONFIG = {
-        acoruna: { label: 'A Coruña', center: [43.366, -8.412], zoom: 14 },
-        vigo: { label: 'Vigo', center: [42.2406, -8.7207], zoom: 13 },
-        santiago: { label: 'Santiago', center: [42.8782, -8.5448], zoom: 13 },
-      };
 
-      const state = {
-        city: 'acoruna',
-        stations: [],
-        stationById: new Map(),
-        selectedStationId: null,
-        statuses: new Map(),
-        forecasts: new Map(),
-        heatmap: [],
-        heatVisible: true,
-        mapMode: 'map',
-        sidebarOpen: false,
-        chatCollapsed: false,
-        map: null,
-        heatLayer: null,
-        markers: new Map(),
-        co2Chart: null,
-        three: null,
-        threeTooltipVisible: false,
-        renderToken: 0,
-        lastGoodDataAt: null,
-        popupListenerAttached: false,
-      };
+  <script type="module">
+    import { appState, CITY_CONFIG, cityLabel, escapeHtml, setConnection } from './js/utils.js';
+    import { initMap, updateCity, toggleHeat, refreshData } from './js/map.js';
+    import { initChat } from './js/chat.js';
+    import { init3DView, updateStations, toggleThreeView } from './js/3d-view.js';
+    import { initCharts, updateChartsData } from './js/charts.js';
 
-      const dom = {
-        citySelect: document.getElementById('city-select'),
-        connectionPill: document.getElementById('connection-pill'),
-        connectionDot: document.getElementById('connection-dot'),
-        connectionLabel: document.getElementById('connection-label'),
-        sidebar: document.getElementById('sidebar'),
-        sidebarToggle: document.getElementById('sidebar-toggle'),
-        stationSearch: document.getElementById('station-search'),
-        stationSuggestions: document.getElementById('station-suggestions'),
-        stationName: document.getElementById('station-name'),
-        stationBikes: document.getElementById('station-bikes'),
-        stationDocks: document.getElementById('station-docks'),
-        stationUpdated: document.getElementById('station-updated'),
-        forecast30Pill: document.getElementById('forecast-30-pill'),
-        forecast60Pill: document.getElementById('forecast-60-pill'),
-        forecast30Bar: document.getElementById('forecast-30-bar'),
-        forecast60Bar: document.getElementById('forecast-60-bar'),
-        forecast30Range: document.getElementById('forecast-30-range'),
-        forecast60Range: document.getElementById('forecast-60-range'),
-        co2Value: document.getElementById('co2-value'),
-        co2Canvas: document.getElementById('co2-chart'),
-        modeToggle: document.getElementById('mode-toggle'),
-        heatToggle: document.getElementById('heat-toggle'),
-        refreshBtn: document.getElementById('refresh-btn'),
-        mapView: document.getElementById('map-view'),
-        threeView: document.getElementById('three-view'),
-        threeTooltip: document.getElementById('three-tooltip'),
-        chatPanel: document.getElementById('chat-panel'),
-        chatToggle: document.getElementById('chat-toggle'),
-        chatForm: document.getElementById('chat-form'),
-        chatInput: document.getElementById('chat-input'),
-        chatHistory: document.getElementById('chat-history'),
-      };
+    const dom = {
+      citySelect: document.getElementById('city-select'),
+      sidebar: document.getElementById('sidebar'),
+      sidebarToggle: document.getElementById('sidebar-toggle'),
+      stationSearch: document.getElementById('station-search'),
+      stationSuggestions: document.getElementById('station-suggestions'),
+      stationName: document.getElementById('station-name'),
+      modeToggle: document.getElementById('mode-toggle'),
+      heatToggle: document.getElementById('heat-toggle'),
+      refreshBtn: document.getElementById('refresh-btn'),
+      mapView: document.getElementById('map-view'),
+      threeView: document.getElementById('three-view'),
+      chatToggle: document.getElementById('chat-toggle'),
+      chatPanel: document.getElementById('chat-panel'),
+    };
 
-      function cityLabel(city) {
-        return CITY_CONFIG[city]?.label || 'A Coruña';
-      }
+    let mapModule = null;
+    let currentMapMode = 'map';
+    let sidebarOpen = false;
+    let chatCollapsed = false;
 
-      function escapeHtml(text) {
-        return String(text ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
-      }
+    async function renderStationSuggestions(stations) {
+      dom.stationSuggestions.innerHTML = stations.map((station) => {
+        const id = station?.station_id || station?.stationId || station?.id || '';
+        const name = station?.name || station?.station_name || station?.short_name || id || 'Estación';
+        return `<option value="${escapeHtml(name)}" data-id="${escapeHtml(id)}"></option>`;
+      }).join('');
+    }
 
-      function unwrapValue(value, fallback = null) {
-        if (value == null) return fallback;
-        if (typeof value === 'object' && !Array.isArray(value)) {
-          if ('value' in value) return value.value;
-          if ('object' in value) return value.object;
+    function setSidebarOpen(open) {
+      sidebarOpen = open;
+      dom.sidebar.classList.toggle('is-open', open);
+      dom.sidebarToggle.textContent = open ? 'Cerrar' : 'Abrir';
+    }
+
+    function setChatCollapsed(collapsed) {
+      chatCollapsed = collapsed;
+      dom.chatPanel.classList.toggle('is-collapsed', collapsed);
+      dom.chatToggle.textContent = collapsed ? 'Mostrar' : 'Ocultar';
+    }
+
+    function setMode(mode) {
+      currentMapMode = mode;
+      dom.mapView.classList.toggle('layer-hidden', mode !== 'map');
+      dom.threeView.classList.toggle('layer-hidden', mode !== '3d');
+      dom.modeToggle.textContent = mode === 'map' ? 'Vista 3D' : 'Vista Mapa';
+      if (mode === 'map') {
+        if (dom.mapView && dom.mapView._leaflet_map) {
+          requestAnimationFrame(() => dom.mapView._leaflet_map.invalidateSize());
         }
-        return value;
+      } else if (mode === '3d') {
+        init3DView('three-view');
       }
-
-      function numberValue(value, fallback = 0) {
-        const raw = unwrapValue(value, fallback);
-        const parsed = Number(raw);
-        return Number.isFinite(parsed) ? parsed : fallback;
-      }
-
-      function getStationId(item) {
-        return item?.station_id || item?.stationId || item?.id || '';
-      }
-
-      function getStationName(item) {
-        return item?.name || item?.station_name || item?.short_name || item?.stationId || getStationId(item) || 'Estación';
-      }
-
-      function getAvailabilityClass(value) {
-        if (value > 5) return 'availability-good';
-        if (value > 0) return 'availability-warn';
-        return 'availability-bad';
-      }
-
-      function getAvailabilityColor(value) {
-        if (value > 5) return '#22c55e';
-        if (value > 0) return '#f59e0b';
-        return '#ef4444';
-      }
-
-      function getAvailabilityHex(value) {
-        if (value > 5) return 0x22c55e;
-        if (value > 0) return 0xf59e0b;
-        return 0xef4444;
-      }
-
-      function relativeTime(value) {
-        const timestamp = Number(value) * 1000;
-        if (!Number.isFinite(timestamp) || timestamp <= 0) return 'sin dato';
-        const delta = Date.now() - timestamp;
-        if (delta < 0) return 'ahora';
-        const minutes = Math.floor(delta / 60000);
-        if (minutes < 1) return 'hace <1 min';
-        if (minutes < 60) return `hace ${minutes} min`;
-        const hours = Math.floor(minutes / 60);
-        return `hace ${hours} h`;
-      }
-
-      function setConnection(online, message) {
-        dom.connectionPill.className = `flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-medium ${online ? 'border border-emerald-400/20 bg-emerald-400/10 text-emerald-300' : 'border border-rose-400/20 bg-rose-400/10 text-rose-300'}`;
-        dom.connectionDot.className = `h-2.5 w-2.5 rounded-full ${online ? 'bg-emerald-400' : 'bg-rose-400'}`;
-        dom.connectionLabel.textContent = message || (online ? 'Conectado' : 'Sin conexión');
-      }
-
-      function setSidebarOpen(open) {
-        state.sidebarOpen = open;
-        dom.sidebar.classList.toggle('is-open', open);
-        dom.sidebarToggle.textContent = open ? 'Cerrar' : 'Abrir';
-      }
-
-      function setChatCollapsed(collapsed) {
-        state.chatCollapsed = collapsed;
-        dom.chatPanel.classList.toggle('is-collapsed', collapsed);
-        dom.chatToggle.textContent = collapsed ? 'Mostrar' : 'Ocultar';
-      }
-
-      function setMode(mode) {
-        state.mapMode = mode;
-        dom.mapView.classList.toggle('layer-hidden', mode !== 'map');
-        dom.threeView.classList.toggle('layer-hidden', mode !== '3d');
-        dom.modeToggle.textContent = mode === 'map' ? 'Vista 3D' : 'Vista Mapa';
-        if (mode !== '3d') {
-          hideThreeTooltip();
-        }
-        if (mode === 'map' && state.map) {
-          requestAnimationFrame(() => state.map.invalidateSize());
-        }
-        if (mode === '3d') {
-          ensureThreeScene();
-          renderThreeScene();
-        }
-      }
-
-      function requestJSON(path, options = {}) {
-        return fetch(`${API_BASE}${path}`, {
-          headers: {
-            'Content-Type': 'application/json',
-            ...(options.headers || {}),
-          },
-          ...options,
-        }).then(async (response) => {
-          if (!response.ok) {
-            const text = await response.text().catch(() => '');
-            throw new Error(text || `HTTP ${response.status}`);
-          }
-          return response.json();
-        });
-      }
-
-      function renderStationSuggestions(stations) {
-        dom.stationSuggestions.innerHTML = stations.map((station) => {
-          const id = getStationId(station);
-          const name = getStationName(station);
-          return `<option value="${escapeHtml(name)}" data-id="${escapeHtml(id)}"></option>`;
-        }).join('');
-      }
-
-      function findStationByInput(text) {
-        const needle = String(text || '').trim().toLowerCase();
-        if (!needle) return null;
-        return state.stations.find((station) => {
-          const id = getStationId(station).toLowerCase();
-          const name = getStationName(station).toLowerCase();
-          return id === needle || name === needle || name.includes(needle) || id.includes(needle);
-        }) || null;
-      }
-
-      function stationStatusFor(id) {
-        return state.statuses.get(id) || {};
-      }
-
-      function forecastFor(id) {
-        return state.forecasts.get(id) || null;
-      }
-
-      function formatForecastRange(entry) {
-        if (!entry) return '--';
-        const low = numberValue(entry.low, 0);
-        const high = numberValue(entry.high, 0);
-        return `${low.toFixed(1)} - ${high.toFixed(1)} bicis`;
-      }
-
-      function normalizeForecast(entry, fallbackValue = 0) {
-        const value = numberValue(entry?.value, fallbackValue);
-        const low = numberValue(entry?.low, Math.max(0, value - 2));
-        const high = numberValue(entry?.high, value + 2);
-        return { value, low, high };
-      }
-
-      function updateSidebar(station) {
-        const id = station ? getStationId(station) : null;
-        const status = id ? stationStatusFor(id) : {};
-        const bikes = numberValue(status.num_bikes_available, 0);
-        const docks = numberValue(status.num_docks_available, 0);
-        const lastReported = unwrapValue(status.last_reported, null);
-        const forecast = id ? forecastFor(id) : null;
-        const t30 = normalizeForecast(forecast?.t30, bikes);
-        const t60 = normalizeForecast(forecast?.t60, bikes);
-
-        dom.stationName.textContent = station ? getStationName(station) : 'Sin estación seleccionada';
-        dom.stationName.className = `mt-1 text-2xl font-bold ${getAvailabilityClass(bikes)}`;
-        dom.stationBikes.textContent = station ? String(bikes) : '--';
-        dom.stationBikes.className = `mt-1 text-4xl font-bold ${getAvailabilityClass(bikes)}`;
-        dom.stationDocks.textContent = station ? String(docks) : '--';
-        dom.stationUpdated.textContent = station ? relativeTime(lastReported) : '--';
-
-        dom.forecast30Pill.textContent = `${t30.value.toFixed(1)} bicis`;
-        dom.forecast60Pill.textContent = `${t60.value.toFixed(1)} bicis`;
-        dom.forecast30Range.textContent = `Intervalo: ${formatForecastRange(t30)}`;
-        dom.forecast60Range.textContent = `Intervalo: ${formatForecastRange(t60)}`;
-
-        dom.forecast30Bar.style.width = `${Math.max(4, Math.min(100, (t30.value / 25) * 100))}%`;
-        dom.forecast60Bar.style.width = `${Math.max(4, Math.min(100, (t60.value / 25) * 100))}%`;
-      }
-
-      function updateMarkers() {
-        if (!state.map) return;
-        const visibleIds = new Set();
-
-        state.stations.forEach((station) => {
-          const id = getStationId(station);
-          const lat = numberValue(station.lat, NaN);
-          const lon = numberValue(station.lon, NaN);
-          if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
-          visibleIds.add(id);
-
-          const status = stationStatusFor(id);
-          const bikes = numberValue(status.num_bikes_available, 0);
-          const docks = numberValue(status.num_docks_available, 0);
-          const active = id === state.selectedStationId;
-          const color = getAvailabilityColor(bikes);
-
-          let marker = state.markers.get(id);
-          const popupHtml = `
-            <div class="min-w-[220px] space-y-3 text-slate-900">
-              <div>
-                <div class="text-sm font-semibold text-slate-700">${escapeHtml(getStationName(station))}</div>
-                <div class="font-mono text-xs text-slate-500">${escapeHtml(id)}</div>
-              </div>
-              <div class="grid grid-cols-2 gap-2 text-sm">
-                <div class="rounded-xl bg-slate-100 px-3 py-2"><span class="block text-slate-500">Bicis</span><span class="font-bold text-slate-900">${bikes}</span></div>
-                <div class="rounded-xl bg-slate-100 px-3 py-2"><span class="block text-slate-500">Docks</span><span class="font-bold text-slate-900">${docks}</span></div>
-              </div>
-              <button class="js-forecast-btn w-full rounded-xl bg-slate-900 px-3 py-2 text-sm font-semibold text-white transition hover:bg-slate-700" data-station-id="${escapeHtml(id)}">Ver predicción</button>
-            </div>
-          `;
-
-          if (!marker) {
-            marker = L.circleMarker([lat, lon], {
-              radius: active ? 13 : 11,
-              color,
-              weight: active ? 4 : 2,
-              opacity: 0.95,
-              fillColor: color,
-              fillOpacity: 0.88,
-            }).addTo(state.map);
-            marker.on('click', () => selectStation(id, { openPopup: false, panTo: false }));
-            marker.bindPopup(popupHtml, { closeButton: true, autoPanPadding: [24, 24] });
-            state.markers.set(id, marker);
-          } else {
-            marker.setStyle({
-              radius: active ? 13 : 11,
-              color,
-              weight: active ? 4 : 2,
-              fillColor: color,
-              fillOpacity: 0.88,
-            });
-            marker.setPopupContent(popupHtml);
-          }
-        });
-
-        for (const [id, marker] of state.markers.entries()) {
-          if (!visibleIds.has(id)) {
-            state.map.removeLayer(marker);
-            state.markers.delete(id);
-          }
-        }
-
-        if (!state.popupListenerAttached) {
-          state.popupListenerAttached = true;
-          state.map.on('popupopen', (event) => {
-            const button = event.popup.getElement()?.querySelector('.js-forecast-btn');
-            if (button) {
-              button.addEventListener('click', () => {
-                const stationId = button.getAttribute('data-station-id');
-                if (stationId) {
-                  selectStation(stationId, { openPopup: false, panTo: true });
-                }
-              }, { once: true });
-            }
-          });
-        }
-      }
-
-      function updateHeatmap() {
-        if (!state.map) return;
-        const points = state.heatmap
-          .map((row) => {
-            const station = state.stationById.get(row.station_id);
-            if (!station) return null;
-            const lat = numberValue(station.lat, NaN);
-            const lon = numberValue(station.lon, NaN);
-            if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
-            return [lat, lon, Math.max(0.05, numberValue(row.intensity, 0.1))];
-          })
-          .filter(Boolean);
-
-        if (state.heatLayer) {
-          state.map.removeLayer(state.heatLayer);
-          state.heatLayer = null;
-        }
-
-        if (state.heatVisible && points.length && window.L.heatLayer) {
-          state.heatLayer = L.heatLayer(points, {
-            radius: 30,
-            blur: 24,
-            maxZoom: 17,
-            minOpacity: 0.2,
-            gradient: { 0.1: '#0f172a', 0.35: '#38bdf8', 0.6: '#34d399', 0.85: '#fbbf24', 1: '#fb7185' },
-          }).addTo(state.map);
-        }
-
-        dom.heatToggle.textContent = state.heatVisible ? 'Ocultar heatmap' : 'Mostrar heatmap';
-      }
-
-      function updateCo2Chart() {
-        const totalKg = state.heatmap.reduce((sum, row) => {
-          const count = numberValue(row.trip_count, 0);
-          const avgDistance = numberValue(row.avg_distance, 0);
-          return sum + (count * avgDistance * 0.00012);
-        }, 0);
-
-        const goalKg = Math.max(100, totalKg * 1.45);
-        const remainder = Math.max(goalKg - totalKg, 0);
-        dom.co2Value.textContent = `${totalKg.toFixed(1)} kg`;
-
-        if (!window.Chart) return;
-
-        if (!state.co2Chart) {
-          const centerLabelPlugin = {
-            id: 'centerLabel',
-            beforeDraw(chart) {
-              const { ctx, chartArea } = chart;
-              if (!chartArea) return;
-              const saved = Number(chart.data?.datasets?.[0]?.data?.[0] || 0);
-              ctx.save();
-              ctx.textAlign = 'center';
-              ctx.textBaseline = 'middle';
-              ctx.fillStyle = '#ecf3ff';
-              ctx.font = '700 18px Space Grotesk';
-              ctx.fillText(`${saved.toFixed(1)} kg`, chartArea.left + chartArea.width / 2, chartArea.top + chartArea.height / 2 - 5);
-              ctx.fillStyle = '#8ca0be';
-              ctx.font = '500 11px IBM Plex Mono';
-              ctx.fillText('CO2 ahorrado', chartArea.left + chartArea.width / 2, chartArea.top + chartArea.height / 2 + 16);
-              ctx.restore();
-            },
-          };
-
-          state.co2Chart = new Chart(dom.co2Canvas, {
-            type: 'doughnut',
-            data: {
-              labels: ['Ahorro acumulado', 'Objetivo restante'],
-              datasets: [{
-                data: [totalKg, remainder],
-                backgroundColor: ['#34d399', 'rgba(148, 163, 184, 0.16)'],
-                borderColor: ['rgba(52, 211, 153, 0.9)', 'rgba(148, 163, 184, 0.1)'],
-                borderWidth: 1,
-                hoverOffset: 4,
-              }],
-            },
-            options: {
-              responsive: true,
-              maintainAspectRatio: false,
-              cutout: '72%',
-              plugins: {
-                legend: {
-                  position: 'bottom',
-                  labels: {
-                    color: '#d6e2f3',
-                    usePointStyle: true,
-                    boxWidth: 10,
-                  },
-                },
-                tooltip: {
-                  callbacks: {
-                    label(context) {
-                      return `${context.label}: ${Number(context.raw).toFixed(1)} kg`;
-                    },
-                  },
-                },
-              },
-            },
-            plugins: [centerLabelPlugin],
-          });
-        } else {
-          state.co2Chart.data.datasets[0].data = [totalKg, remainder];
-          state.co2Chart.update();
-        }
-      }
-
-      function ensureMap() {
-        if (state.map || !window.L) return;
-        const config = CITY_CONFIG[state.city] || CITY_CONFIG.acoruna;
-        state.map = L.map(dom.mapView, { zoomControl: true }).setView(config.center, config.zoom);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          attribution: '&copy; OpenStreetMap contributors',
-          maxZoom: 19,
-        }).addTo(state.map);
-      }
-
-      function ensureThreeScene() {
-        if (state.three || !window.THREE || !dom.threeView) return;
-        const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x07111d);
-
-        const width = dom.threeView.clientWidth || 1;
-        const height = dom.threeView.clientHeight || 1;
-        const camera = new THREE.PerspectiveCamera(42, width / height, 0.1, 2000);
-        camera.position.set(0, 55, 72);
-        camera.lookAt(0, 0, 0);
-
-        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-        renderer.setPixelRatio(window.devicePixelRatio || 1);
-        renderer.setSize(width, height, false);
-        dom.threeView.innerHTML = '';
-        dom.threeView.appendChild(renderer.domElement);
-
-        const controls = new THREE.OrbitControls(camera, renderer.domElement);
-        controls.enableDamping = true;
-        controls.dampingFactor = 0.06;
-        controls.enableZoom = true;
-        controls.enablePan = true;
-        controls.rotateSpeed = 0.75;
-        controls.panSpeed = 0.8;
-        controls.target.set(0, 8, 0);
-        controls.update();
-
-        const ambient = new THREE.AmbientLight(0xffffff, 0.72);
-        scene.add(ambient);
-
-        const light = new THREE.DirectionalLight(0xffffff, 1.2);
-        light.position.set(30, 60, 30);
-        scene.add(light);
-
-        const floor = new THREE.Mesh(
-          new THREE.PlaneGeometry(160, 160, 1, 1),
-          new THREE.MeshStandardMaterial({ color: 0x0f1b2e, metalness: 0.12, roughness: 0.88 })
-        );
-        floor.rotation.x = -Math.PI / 2;
-        scene.add(floor);
-
-        const grid = new THREE.GridHelper(160, 24, 0x2f4b70, 0x1a2d46);
-        grid.position.y = 0.02;
-        scene.add(grid);
-
-        const raycaster = new THREE.Raycaster();
-        const pointer = new THREE.Vector2();
-
-        state.three = { scene, camera, renderer, controls, raycaster, pointer, bars: new Map(), floor, grid, frame: null };
-        window.addEventListener('resize', resizeThreeScene);
-        renderer.domElement.addEventListener('click', handleThreeClick);
-      }
-
-      function hideThreeTooltip() {
-        if (!dom.threeTooltip) return;
-        dom.threeTooltip.classList.remove('is-visible');
-        dom.threeTooltip.setAttribute('aria-hidden', 'true');
-        delete dom.threeTooltip.dataset.stationId;
-        state.threeTooltipVisible = false;
-      }
-
-      function showThreeTooltip(stationId, station, bikes) {
-        if (!dom.threeTooltip || !station) return;
-        const name = getStationName(station);
-        dom.threeTooltip.dataset.stationId = stationId;
-        dom.threeTooltip.innerHTML = `
-          <div class="three-tooltip-name">${escapeHtml(name)}</div>
-          <div class="three-tooltip-value">${bikes} bicis disponibles</div>
-          <div class="three-tooltip-note">num_bikes_available</div>
-        `;
-        dom.threeTooltip.classList.add('is-visible');
-        dom.threeTooltip.setAttribute('aria-hidden', 'false');
-        state.threeTooltipVisible = true;
-      }
-
-      function positionThreeTooltip(mesh) {
-        if (!state.three || !dom.threeTooltip || !mesh) return;
-        const rect = dom.threeView.getBoundingClientRect();
-        const projected = mesh.position.clone();
-        projected.project(state.three.camera);
-        const x = ((projected.x + 1) / 2) * rect.width;
-        const y = ((-projected.y + 1) / 2) * rect.height;
-        dom.threeTooltip.style.left = `${x}px`;
-        dom.threeTooltip.style.top = `${y}px`;
-      }
-
-      function handleThreeClick(event) {
-        if (!state.three || !dom.threeView) return;
-        const rect = dom.threeView.getBoundingClientRect();
-        const x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-        const y = -(((event.clientY - rect.top) / rect.height) * 2 - 1);
-        state.three.pointer.set(x, y);
-        state.three.raycaster.setFromCamera(state.three.pointer, state.three.camera);
-        const intersects = state.three.raycaster.intersectObjects(Array.from(state.three.bars.values()), false);
-        if (!intersects.length) {
-          hideThreeTooltip();
-          return;
-        }
-
-        const mesh = intersects[0].object;
-        const station = state.stationById.get(mesh.userData.id);
-        if (!station) {
-          hideThreeTooltip();
-          return;
-        }
-
-        showThreeTooltip(mesh.userData.id, station, numberValue(mesh.userData.bikes, 0));
-        positionThreeTooltip(mesh);
-      }
-
-      function resizeThreeScene() {
-        if (!state.three) return;
-        const width = dom.threeView.clientWidth || 1;
-        const height = dom.threeView.clientHeight || 1;
-        state.three.camera.aspect = width / height;
-        state.three.camera.updateProjectionMatrix();
-        state.three.renderer.setSize(width, height, false);
-        state.three.controls?.update();
-        if (state.threeTooltipVisible) {
-          const tooltipId = dom.threeTooltip?.dataset.stationId;
-          const tooltipMesh = tooltipId ? state.three.bars.get(tooltipId) : null;
-          if (tooltipMesh) {
-            positionThreeTooltip(tooltipMesh);
-          }
-        }
-      }
-
-      function syncThreeStations() {
-        if (!state.three) return;
-        const { scene, bars } = state.three;
-        const config = CITY_CONFIG[state.city] || CITY_CONFIG.acoruna;
-        const centerLat = config.center[0];
-        const centerLon = config.center[1];
-        const scale = 7000;
-        const nextIds = new Set();
-
-        state.stations.forEach((station) => {
-          const id = getStationId(station);
-          const lat = numberValue(station.lat, centerLat);
-          const lon = numberValue(station.lon, centerLon);
-          const status = stationStatusFor(id);
-          const bikes = numberValue(status.num_bikes_available, 0);
-          const docks = numberValue(status.num_docks_available, 0);
-          const targetHeight = Math.max(1.6, 3 + bikes * 0.45);
-          const targetColor = getAvailabilityHex(bikes);
-          nextIds.add(id);
-
-          let mesh = bars.get(id);
-          if (!mesh) {
-            const material = new THREE.MeshStandardMaterial({
-              color: targetColor,
-              emissive: 0x000000,
-              emissiveIntensity: 0,
-              roughness: 0.45,
-              metalness: 0.08,
-            });
-            mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), material);
-            mesh.position.set((lon - centerLon) * scale, targetHeight / 2, (lat - centerLat) * -scale);
-            mesh.scale.set(2.2, targetHeight, 2.2);
-            mesh.userData = {
-              id,
-              stationName: getStationName(station),
-              bikes,
-              docks,
-              currentHeight: targetHeight,
-              targetHeight,
-              currentColor: targetColor,
-              targetColor,
-            };
-            scene.add(mesh);
-            bars.set(id, mesh);
-          }
-
-          mesh.position.x = (lon - centerLon) * scale;
-          mesh.position.z = (lat - centerLat) * -scale;
-          mesh.userData.stationName = getStationName(station);
-          mesh.userData.bikes = bikes;
-          mesh.userData.docks = docks;
-          mesh.userData.targetHeight = targetHeight;
-          mesh.userData.targetColor = targetColor;
-          if (mesh.userData.currentHeight == null) {
-            mesh.userData.currentHeight = targetHeight;
-          }
-          if (mesh.userData.currentColor == null) {
-            mesh.userData.currentColor = targetColor;
-          }
-          mesh.scale.x = 2.2;
-          mesh.scale.z = 2.2;
-          mesh.material.color.setHex(targetColor);
-        });
-
-        for (const [id, mesh] of bars.entries()) {
-          if (!nextIds.has(id)) {
-            scene.remove(mesh);
-            mesh.geometry.dispose();
-            mesh.material.dispose();
-            bars.delete(id);
-          }
-        }
-
-        const tooltipId = dom.threeTooltip?.dataset.stationId;
-        if (tooltipId && !bars.has(tooltipId)) {
-          hideThreeTooltip();
-        }
-      }
-
-      function renderThreeScene() {
-        if (!state.three) return;
-        syncThreeStations();
-
-        if (!state.three.frame) {
-          const tick = () => {
-            state.three.frame = window.requestAnimationFrame(tick);
-            state.three.controls?.update();
-
-            for (const [id, mesh] of state.three.bars.entries()) {
-              const currentHeight = numberValue(mesh.userData.currentHeight, mesh.userData.targetHeight || 1.6);
-              const targetHeight = numberValue(mesh.userData.targetHeight, currentHeight);
-              const nextHeight = currentHeight + (targetHeight - currentHeight) * 0.05;
-              mesh.userData.currentHeight = nextHeight;
-              mesh.scale.y = nextHeight;
-              mesh.position.y = nextHeight / 2;
-
-              const currentColor = mesh.material.color.getHex();
-              const targetColor = numberValue(mesh.userData.targetColor, currentColor);
-              if (currentColor !== targetColor) {
-                mesh.material.color.setHex(targetColor);
-                mesh.userData.currentColor = targetColor;
-              }
-
-              const isSelected = id === state.selectedStationId;
-              mesh.material.emissive.setHex(isSelected ? 0x1f2937 : 0x000000);
-              mesh.material.emissiveIntensity = isSelected ? 0.8 : 0;
-            }
-
-            if (state.threeTooltipVisible) {
-              const tooltipId = dom.threeTooltip?.dataset.stationId;
-              const tooltipMesh = tooltipId ? state.three.bars.get(tooltipId) : null;
-              if (tooltipMesh) {
-                positionThreeTooltip(tooltipMesh);
-              }
-            }
-
-            state.three.renderer.render(state.three.scene, state.three.camera);
-          };
-          tick();
-        }
-      }
-
-      function syncThreeHighlight() {
-        if (!state.three) return;
-        for (const [id, mesh] of state.three.bars.entries()) {
-          mesh.material.emissive.setHex(id === state.selectedStationId ? 0x1f2937 : 0x000000);
-          mesh.material.emissiveIntensity = id === state.selectedStationId ? 0.8 : 0;
-        }
-        if (state.threeTooltipVisible) {
-          const tooltipId = dom.threeTooltip?.dataset.stationId;
-          const tooltipMesh = tooltipId ? state.three.bars.get(tooltipId) : null;
-          if (tooltipMesh) {
-            positionThreeTooltip(tooltipMesh);
-          }
-        }
-      }
-
-      async function loadStations(city = state.city, preserveSelection = false) {
-        const currentToken = ++state.renderToken;
-        const response = await requestJSON(`/api/stations?city=${encodeURIComponent(city)}`);
-        if (currentToken !== state.renderToken) return;
-
-        const items = Array.isArray(response?.items) ? response.items : [];
-        state.stations = items;
-        state.stationById = new Map(items.map((station) => [getStationId(station), station]));
-        renderStationSuggestions(items);
-        ensureMap();
-        if (state.map) {
-          const config = CITY_CONFIG[city] || CITY_CONFIG.acoruna;
-          state.map.setView(config.center, config.zoom);
-        }
-        updateMarkers();
-
-        const nextSelection = preserveSelection && state.selectedStationId && state.stationById.has(state.selectedStationId)
-          ? state.selectedStationId
-          : items[0] ? getStationId(items[0]) : null;
-
-        if (nextSelection) {
-          await selectStation(nextSelection, { openPopup: false, panTo: false, silent: true });
-        } else {
-          state.selectedStationId = null;
-          updateSidebar(null);
-        }
-
-        renderMapData();
-      }
-
-      async function refreshStationStatuses() {
-        if (!state.stations.length) return;
-        const requests = state.stations.map(async (station) => {
-          const id = getStationId(station);
-          try {
-            const status = await requestJSON(`/api/stations/${encodeURIComponent(id)}/status`);
-            state.statuses.set(id, status);
-          } catch (error) {
-            console.warn('Status refresh failed for', id, error);
-          }
-        });
-
-        await Promise.allSettled(requests);
-        state.lastGoodDataAt = Date.now();
-        updateMarkers();
-        updateSidebar(state.stationById.get(state.selectedStationId) || state.stations[0] || null);
-        updateCo2Chart();
-        syncThreeStations();
-        renderThreeScene();
-        syncThreeHighlight();
-      }
-
-      async function loadHeatmap(city = state.city) {
-        try {
-          const rows = await requestJSON(`/api/weather/trips/heatmap?city=${encodeURIComponent(city)}`);
-          state.heatmap = Array.isArray(rows) ? rows : [];
-          updateHeatmap();
-          updateCo2Chart();
-          setConnection(true, `Conectado · ${cityLabel(city)}`);
-          state.lastGoodDataAt = Date.now();
-        } catch (error) {
-          console.warn('Heatmap failed', error);
-          state.heatmap = [];
-          updateHeatmap();
-          updateCo2Chart();
-          setConnection(false, 'Sin conexión');
-        }
-      }
-
-      async function fetchForecast(stationId) {
-        if (!stationId) return;
-        try {
-          const forecast = await requestJSON(`/api/stations/${encodeURIComponent(stationId)}/forecast`);
-          state.forecasts.set(stationId, forecast);
-          if (stationId === state.selectedStationId) {
-            updateSidebar(state.stationById.get(stationId));
-          }
-          setConnection(true, `Conectado · ${cityLabel(state.city)}`);
-        } catch (error) {
-          console.warn('Forecast failed for', stationId, error);
-          setConnection(false, 'Sin conexión');
-        }
-      }
-
-      async function selectStation(stationId, options = {}) {
-        if (!stationId || !state.stationById.has(stationId)) return;
-        state.selectedStationId = stationId;
-        const station = state.stationById.get(stationId);
-        updateMarkers();
-        updateSidebar(station);
-        syncThreeHighlight();
-
-        if (options.panTo !== false && state.map && station) {
-          const lat = numberValue(station.lat, null);
-          const lon = numberValue(station.lon, null);
-          if (Number.isFinite(lat) && Number.isFinite(lon)) {
-            state.map.setView([lat, lon], Math.max(state.map.getZoom(), 15), { animate: true });
-          }
-        }
-
-        if (options.openPopup !== false && state.markers.has(stationId)) {
-          state.markers.get(stationId).openPopup();
-        }
-
-        if (!options.silent) {
-          await fetchForecast(stationId);
-        } else {
-          fetchForecast(stationId);
-        }
-      }
-
-      function renderMapData() {
-        updateMarkers();
-        updateHeatmap();
-        updateCo2Chart();
-        renderThreeScene();
-      }
-
-      function addChatMessage(role, content) {
-        const wrapper = document.createElement('div');
-        wrapper.className = `chat-message ${role === 'user' ? 'chat-user' : 'chat-assistant'}`;
-        wrapper.textContent = content;
-        dom.chatHistory.appendChild(wrapper);
-        dom.chatHistory.scrollTop = dom.chatHistory.scrollHeight;
-        return wrapper;
-      }
-
-      async function sendChat(message) {
-        const pending = addChatMessage('assistant', 'Escribiendo...');
-        try {
-          const response = await requestJSON('/api/chat', {
-            method: 'POST',
-            body: JSON.stringify({ city: state.city, message }),
-          });
-          pending.textContent = response?.response || 'Sin respuesta disponible.';
-          setConnection(true, `Conectado · ${cityLabel(state.city)}`);
-        } catch (error) {
-          pending.textContent = `Error al responder: ${error.message || 'sin detalle'}`;
-          setConnection(false, 'Sin conexión');
-        }
-      }
-
-      function bootstrapCities() {
-        dom.citySelect.innerHTML = Object.entries(CITY_CONFIG).map(([value, item]) => `<option value="${escapeHtml(value)}">${escapeHtml(item.label)}</option>`).join('');
-        dom.citySelect.value = state.city;
-      }
-
-      async function loadCity(city) {
-        state.city = city;
-        dom.citySelect.value = city;
-        setConnection(false, `Cargando ${cityLabel(city)}...`);
-        try {
-          await loadStations(city, false);
-          await Promise.allSettled([
-            refreshStationStatuses(),
-            loadHeatmap(city),
-          ]);
-          if (state.map) {
-            const config = CITY_CONFIG[city] || CITY_CONFIG.acoruna;
-            state.map.setView(config.center, config.zoom);
-          }
-          setConnection(true, `Conectado · ${cityLabel(city)}`);
-        } catch (error) {
-          console.error(error);
-          setConnection(false, 'Sin conexión');
-          dom.stationName.textContent = 'No se pudieron cargar las estaciones';
-        }
-      }
-
-      function attachEvents() {
-        dom.citySelect.addEventListener('change', (event) => {
-          loadCity(event.target.value || 'acoruna');
-        });
-
-        dom.stationSearch.addEventListener('change', () => {
-          const match = findStationByInput(dom.stationSearch.value);
-          if (match) {
-            selectStation(getStationId(match), { panTo: true });
-          }
-        });
-
-        dom.stationSearch.addEventListener('keydown', (event) => {
-          if (event.key === 'Enter') {
-            event.preventDefault();
-            const match = findStationByInput(dom.stationSearch.value);
-            if (match) {
-              selectStation(getStationId(match), { panTo: true });
-            }
-          }
-        });
-
-        dom.modeToggle.addEventListener('click', () => {
-          setMode(state.mapMode === 'map' ? '3d' : 'map');
-        });
-
-        dom.heatToggle.addEventListener('click', () => {
-          state.heatVisible = !state.heatVisible;
-          updateHeatmap();
-        });
-
-        dom.refreshBtn.addEventListener('click', () => {
-          refreshStationStatuses();
-          loadHeatmap(state.city);
-        });
-
-        dom.sidebarToggle.addEventListener('click', () => {
-          setSidebarOpen(!state.sidebarOpen);
-        });
-
-        dom.chatToggle.addEventListener('click', () => {
-          setChatCollapsed(!state.chatCollapsed);
-        });
-
-        dom.chatForm.addEventListener('submit', (event) => {
-          event.preventDefault();
-          const message = dom.chatInput.value.trim();
-          if (!message) return;
-          dom.chatInput.value = '';
-          addChatMessage('user', message);
-          sendChat(message);
-        });
-      }
-
-      function seedChat() {
-        dom.chatHistory.innerHTML = '';
-        addChatMessage('assistant', 'Puedo ayudarte con el estado de estaciones, la predicción a 30 y 60 minutos, el clima y las consultas operativas en A Coruña.');
-      }
-
-      async function bootstrap() {
-        bootstrapCities();
-        ensureMap();
-        setMode('map');
-        setSidebarOpen(false);
-        setChatCollapsed(false);
-        seedChat();
-        attachEvents();
-        updateCo2Chart();
-        await loadCity(state.city);
-        setInterval(() => {
-          refreshStationStatuses();
-        }, 30000);
-      }
-
-      window.addEventListener('resize', () => {
-        if (state.map) {
-          state.map.invalidateSize();
-        }
-        resizeThreeScene();
-      });
-
-      bootstrap().catch((error) => {
-        console.error(error);
+    }
+
+    function bootstrapCities() {
+      dom.citySelect.innerHTML = Object.entries(CITY_CONFIG)
+        .map(([value, item]) => `<option value="${escapeHtml(value)}">${escapeHtml(item.label)}</option>`)
+        .join('');
+      dom.citySelect.value = appState.city;
+    }
+
+    async function loadCity(city) {
+      appState.city = city;
+      dom.citySelect.value = city;
+      setConnection(false, `Cargando ${cityLabel(city)}...`);
+      try {
+        await mapModule.loadStations();
+        await Promise.allSettled([
+          mapModule.refreshStations(),
+          mapModule.loadHeatmap(),
+        ]);
+        renderStationSuggestions(appState.stations);
+        updateStations(appState.stations);
+        updateChartsData(appState.heatmap);
+        setConnection(true, `Conectado · ${cityLabel(city)}`);
+      } catch (error) {
+        console.error('loadCity failed', error);
         setConnection(false, 'Sin conexión');
-        dom.stationName.textContent = 'Error al inicializar la interfaz';
+        dom.stationName.textContent = 'No se pudieron cargar las estaciones';
+      }
+    }
+
+    function attachEvents() {
+      dom.citySelect.addEventListener('change', (event) => {
+        loadCity(event.target.value || 'acoruna');
       });
-    })();
+
+      dom.modeToggle.addEventListener('click', () => {
+        setMode(currentMapMode === 'map' ? '3d' : 'map');
+      });
+
+      dom.heatToggle.addEventListener('click', () => {
+        toggleHeat();
+      });
+
+      dom.refreshBtn.addEventListener('click', () => {
+        refreshData();
+        updateStations(appState.stations);
+        updateChartsData(appState.heatmap);
+      });
+
+      dom.sidebarToggle.addEventListener('click', () => {
+        setSidebarOpen(!sidebarOpen);
+      });
+
+      dom.chatToggle.addEventListener('click', () => {
+        setChatCollapsed(!chatCollapsed);
+      });
+    }
+
+    async function bootstrap() {
+      bootstrapCities();
+      mapModule = initMap(appState.city);
+      initChat(appState.city);
+      initCharts();
+      init3DView('three-view');
+      setMode('map');
+      setSidebarOpen(false);
+      setChatCollapsed(false);
+      attachEvents();
+
+      await loadCity(appState.city);
+
+      // Refresh station data every 30 seconds
+      setInterval(() => {
+        mapModule.refreshStations();
+        updateStations(appState.stations);
+        updateChartsData(appState.heatmap);
+      }, 30000);
+    }
+
+    window.addEventListener('resize', () => {
+      if (dom.mapView && dom.mapView._leaflet_map) {
+        dom.mapView._leaflet_map.invalidateSize();
+      }
+    });
+
+    bootstrap().catch((error) => {
+      console.error('Bootstrap failed', error);
+      setConnection(false, 'Sin conexión');
+      dom.stationName.textContent = 'Error al inicializar la interfaz';
+    });
   </script>
 </body>
 </html>

@@ -1,54 +1,105 @@
-// TODO: connect the chart to historical and predictive availability datasets.
+// Charts module: CO2 savings doughnut chart powered by heatmap data.
 
-export function initializeCharts(canvasId = 'availability-chart') {
-  const canvas = document.getElementById(canvasId);
-  if (!canvas || typeof window.Chart === 'undefined') {
-    return null;
+import { appState, numberValue } from './utils.js';
+
+let co2Chart = null;
+
+/**
+ * Update the CO2 chart based on heatmap data.
+ */function updateCharts(data) {
+  const totalKg = (data || []).reduce((sum, row) => {
+    const count = numberValue(row.trip_count, 0);
+    const avgDistance = numberValue(row.avg_distance, 0);
+    // CO₂ savings: 0.21 kg per km of distance
+    return sum + (count * avgDistance * 0.21);
+  }, 0);
+
+  const goalKg = Math.max(100, totalKg * 1.45);
+  const remainder = Math.max(goalKg - totalKg, 0);
+
+  const co2Value = document.getElementById('co2-value');
+  if (co2Value) {
+    co2Value.textContent = `${totalKg.toFixed(1)} kg`;
   }
 
-  return new window.Chart(canvas, {
-    type: 'line',
-    data: {
-      labels: ['Ahora', '+30m', '+60m'],
-      datasets: [
-        {
-          label: 'Bicis disponibles',
-          data: [6, 7, 5],
-          borderColor: '#30d5c8',
-          backgroundColor: 'rgba(48, 213, 200, 0.15)',
-          tension: 0.35,
-          fill: true,
-        },
-      ],
-    },
-    options: {
-      responsive: true,
-      plugins: {
-        legend: {
-          labels: {
-            color: '#f5f7fb',
+  if (!window.Chart) return;
+
+  if (!co2Chart) {
+    const centerLabelPlugin = {
+      id: 'centerLabel',
+      beforeDraw(chart) {
+        const { ctx, chartArea } = chart;
+        if (!chartArea) return;
+        const saved = Number(chart.data?.datasets?.[0]?.data?.[0] || 0);
+        ctx.save();
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#ecf3ff';
+        ctx.font = '700 18px Space Grotesk';
+        ctx.fillText(`${saved.toFixed(1)} kg`, chartArea.left + chartArea.width / 2, chartArea.top + chartArea.height / 2 - 5);
+        ctx.fillStyle = '#8ca0be';
+        ctx.font = '500 11px IBM Plex Mono';
+        ctx.fillText('CO2 ahorrado', chartArea.left + chartArea.width / 2, chartArea.top + chartArea.height / 2 + 16);
+        ctx.restore();
+      },
+    };
+
+    const canvas = document.getElementById('co2-chart');
+    if (!canvas) return;
+
+    co2Chart = new Chart(canvas, {
+      type: 'doughnut',
+      data: {
+        labels: ['Ahorro acumulado', 'Objetivo restante'],
+        datasets: [{
+          data: [totalKg, remainder],
+          backgroundColor: ['#34d399', 'rgba(148, 163, 184, 0.16)'],
+          borderColor: ['rgba(52, 211, 153, 0.9)', 'rgba(148, 163, 184, 0.1)'],
+          borderWidth: 1,
+          hoverOffset: 4,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '72%',
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: {
+              color: '#d6e2f3',
+              usePointStyle: true,
+              boxWidth: 10,
+            },
+          },
+          tooltip: {
+            callbacks: {
+              label(context) {
+                return `${context.label}: ${Number(context.raw).toFixed(1)} kg`;
+              },
+            },
           },
         },
       },
-      scales: {
-        x: {
-          ticks: {
-            color: '#aac0da',
-          },
-          grid: {
-            color: 'rgba(255, 255, 255, 0.08)',
-          },
-        },
-        y: {
-          beginAtZero: true,
-          ticks: {
-            color: '#aac0da',
-          },
-          grid: {
-            color: 'rgba(255, 255, 255, 0.08)',
-          },
-        },
-      },
-    },
-  });
+      plugins: [centerLabelPlugin],
+    });
+  } else {
+    co2Chart.data.datasets[0].data = [totalKg, remainder];
+    co2Chart.update();
+  }
+}
+
+/**
+ * Initialize the charts module.
+ */
+export function initCharts() {
+  // Initial render with empty data
+  updateCharts([]);
+}
+
+/**
+ * Update the charts with new heatmap data (called by coordinator).
+ */
+export function updateChartsData(heatmapData) {
+  updateCharts(heatmapData);
 }
