@@ -58,7 +58,30 @@ docker-compose ps
 
 Espera a que todos los servicios muestren estado `Up` (o `healthy` si tienen healthcheck).
 
-### 5. Registrar el service group del IoT Agent
+### 5. Configuración automática (recomendado)
+
+Para automatizar el registro del IoT Agent, crear las suscripciones y cargar datos de prueba, ejecuta el script de setup:
+
+```bash
+chmod +x setup.sh
+./setup.sh
+```
+
+Este script es **idempotente**: si una suscripción ya existe (HTTP 409), continúa sin error. Se encarga de:
+1. Esperar a que Orion-LD esté disponible
+2. Registrar el service group del IoT Agent
+3. Crear las 3 suscripciones principales (station_status, WeatherObserved, Trip)
+4. Cargar datos de prueba (seed_current_data.py y seed_historical_data.py)
+
+Luego puedes acceder a la aplicación en **http://localhost:8081**.
+
+---
+
+### 5. (OPCIONAL) Pasos manuales alternativos
+
+Si prefieres configurar manualmente sin el script setup.sh, sigue los pasos 5.a – 5.d.
+
+### 5.a Registrar el service group del IoT Agent
 
 ```bash
 curl -X POST http://localhost:4041/iot/services \
@@ -79,7 +102,7 @@ curl -X POST http://localhost:4041/iot/services \
 
 Respuesta esperada: HTTP 201 (Created).
 
-### 6. Crear la suscripción Orion-LD → QuantumLeap
+### 5.b Crear la suscripción Orion-LD → QuantumLeap
 
 ```bash
 curl -X POST http://localhost:1026/ngsi-ld/v1/subscriptions \
@@ -126,7 +149,7 @@ curl -X POST http://localhost:1026/ngsi-ld/v1/subscriptions \
 
 Respuesta esperada: HTTP 201 (Created) con Location header.
 
-### 6.b Suscripción Orion-LD → QuantumLeap: WeatherObserved
+### 5.c Suscripción Orion-LD → QuantumLeap: WeatherObserved
 
 ```bash
 curl -X POST http://localhost:1026/ngsi-ld/v1/subscriptions \
@@ -154,10 +177,7 @@ curl -X POST http://localhost:1026/ngsi-ld/v1/subscriptions \
   }'
 ```
 
-### 6.c Suscripción Orion-LD → QuantumLeap: Trip
-
-```bash
-curl -X POST http://localhost:1026/ngsi-ld/v1/subscriptions \
+### 5.d Suscripción Orion-LD → QuantumLeap: Trip
   -H "Content-Type: application/ld+json" \
   -H "Fiware-Service: smartmobilityhub" \
   -H "Fiware-ServicePath: /acoruna" \
@@ -181,17 +201,14 @@ curl -X POST http://localhost:1026/ngsi-ld/v1/subscriptions \
   }'
 ```
 
-### 7. Cargar datos actuales de prueba
-
-```bash
-python scripts/seed_current_data.py
+### 5.e Cargar datos actuales de prueba
 ```
 
 Este script inyecta entidades de ejemplo (`station_status`, `station_information`) en Orion-LD para la ciudad piloto (A Coruña).
 
 **Nota:** El script debe enviar los headers FIWARE `Fiware-Service: smartmobilityhub` y `Fiware-ServicePath: /acoruna` en todas las peticiones POST/PATCH a Orion-LD al crear o actualizar entidades, para garantizar la consistencia con la configuración del IoT Agent.
 
-### 8. Cargar datos históricos de prueba
+### 5.f Cargar datos históricos de prueba
 
 ```bash
 python scripts/seed_historical_data.py
@@ -199,7 +216,7 @@ python scripts/seed_historical_data.py
 
 Este script inserta series temporales de ejemplo en CrateDB para permitir análisis histórico y visualizaciones en Grafana.
 
-### 9. Acceder a la aplicación
+### 6. Acceder a la aplicación
 
 La aplicación está lista. Abre tu navegador en:
 
@@ -246,6 +263,46 @@ Esto detiene los servicios y **elimina todos los volúmenes** (MongoDB, CrateDB,
 
 ---
 
+## Arquitectura del Frontend (Modularizado ES6)
+
+El frontend utiliza una **arquitectura modularizada con 5 módulos ES6 independientes** (sin bundler), cargados directamente via `<script type="module">`. Esta arquitectura facilita el mantenimiento, escalabilidad y permite que cada módulo sea responsable de su dominio específico.
+
+### Módulos del Frontend
+
+| Módulo | Responsabilidad | Tamaño |
+|--------|-----------------|--------|
+| `js/utils.js` | Estado compartido (`appState`), configuración de ciudades, funciones utilitarias | 4.5 KB |
+| `js/map.js` | Mapa Leaflet, carga de estaciones, marcadores, heatmap de viajes, predicciones | 13 KB |
+| `js/chat.js` | Panel de chat, mensajería con LLM backend vía `/api/chat` | 2.1 KB |
+| `js/3d-view.js` | Escena Three.js, barras animadas, raycasting, tooltip interactivo | 12 KB |
+| `js/charts.js` | Gráfico doughnut de CO₂ ahorrado con plugin de etiqueta central | 3.0 KB |
+
+### Flujo de inicialización
+
+1. **`index.html`** carga CDN scripts (Leaflet, Chart.js, Three.js, Tailwind).
+2. **Coordinador mínimo** en `<script type="module">`:
+   - Importa los 5 módulos y `utils.js`.
+   - Inicializa cada módulo: `initMap()`, `initChat()`, `initCharts()`, `init3DView()`.
+   - Gestiona evento selector de ciudad y ciclo de refresh (30 segundos).
+3. **Estado centralizado** via `appState` (exportado desde `utils.js`): todos los módulos leen/escriben el mismo estado.
+4. **Comunicación inter-módulos**: mínima, a través de `appState` actualizado y funciones públicas (`updateStations()`, `updateChartsData()`, etc.).
+
+### Características clave
+
+- ✅ **ES6 Modules**: imports/exports estándar sin transpilación ni bundler
+- ✅ **Estado compartido**: `appState` centralizado para evitar inconsistencias
+- ✅ **Desacoplamiento**: cada módulo independiente y reemplazable
+- ✅ **API correcta**: todos los módulos usan endpoints reales del backend:
+  - `GET /api/stations?city={city}`
+  - `GET /api/stations/{id}/status`
+  - `GET /api/stations/{id}/forecast`
+  - `GET /api/weather/trips/heatmap?city={city}`
+  - `POST /api/chat` (body: `{city, message}`)
+- ✅ **Ciclo de refresco**: 30 segundos para actualizar statuses y heatmap automáticamente
+- ✅ **Manejo de errores**: try/catch en todas las peticiones, feedback de conexión online/offline
+
+---
+
 ## Generación de requirements.txt
 
 Para actualizar la lista de dependencias de Python del backend:
@@ -266,7 +323,7 @@ cd backend && pip freeze > ../requirements.txt
 - **FastAPI** — Backend Python para orquestación, consultas y IA
 - **Gemma 2B/7B (LM Studio)** — LLM local para asistente conversacional
 - **Grafana 10.2.0** — Dashboards operativos y analíticos
-- **Frontend estatico** — HTML + JavaScript + Tailwind CSS + Leaflet + ThreeJS + ChartJS
+- **Frontend modularizado ES6** — 5 módulos independientes (utils, map, chat, 3d-view, charts) sin bundler, cargados via `<script type="module">`. Librerías: Tailwind CSS, Leaflet, Three.js, Chart.js
 - **Docker Compose** — Orquestación de contenedores
 - **NGSI-LD** — Estándar de datos (Smart Data Models, GBFS, OSLO)
 

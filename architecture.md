@@ -130,10 +130,57 @@ Provisioning automatico:
 - Grafana monta un archivo de datasource en `/etc/grafana/provisioning/datasources/`.
 - Al arrancar, crea automaticamente la conexion a CrateDB sin configuracion manual en UI.
 
-### 1.7 Frontend estatico (HTML + JS + Tailwind + Leaflet + ThreeJS + ChartJS)
+### 1.7 Frontend estatico (HTML + ES6 Modules + Tailwind + Leaflet + ThreeJS + ChartJS)
 
 Rol:
 - Capa de experiencia de usuario para consulta de estaciones, mapa, predicciones y chat.
+- Arquitectura modularizada en **5 módulos ES6 independientes** sin bundler (carga directa via `<script type="module">`).
+
+**Módulos del frontend:**
+
+1. **`js/utils.js`** (Utilities & Shared State)
+   - Gestión centralizada de estado (`appState`): ciudad activa, estaciones, selecciones, caché de datos.
+   - Configuración de ciudades (`CITY_CONFIG`): A Coruña, Vigo, Santiago con coordenadas y zoom.
+   - Funciones utilitarias: `unwrapValue()`, `numberValue()`, `relativeTime()`, `escapeHtml()`.
+   - Helpers para disponibilidad: `getAvailabilityClass/Color/Hex()` (verde >5 bicis, amarillo 1-5, rojo 0).
+   - Gestión de conexión: `setConnection(online, message)` para feedback UI.
+   - Fetch wrapper: `requestJSON(path, options)` con headers y manejo de errores.
+
+2. **`js/map.js`** (Leaflet Map & Stations)
+   - Inicialización de mapa Leaflet con tiles OpenStreetMap.
+   - Carga de estaciones (`loadStations(city)`) desde `/api/stations?city={city}`.
+   - Marcadores interactivos con popups mostrando bicis/anclajes disponibles.
+   - Heatmap de densidad de viajes (`loadHeatmap()`) desde `/api/weather/trips/heatmap`.
+   - Predicciones a 30/60 min (`fetchForecast(stationId)`) desde `/api/stations/{id}/forecast`.
+   - Sidebar dinámico con detalles de estación seleccionada.
+   - Refresh automático de statuses cada 30s.
+
+3. **`js/chat.js`** (Chat Panel & LLM Integration)
+   - Panel de chat funcional con historial de mensajes.
+   - Envío de mensajes a `/api/chat` (POST) con `{city, message}` en payload.
+   - UI diferenciada: mensajes usuario alineados derecha, asistente izquierda.
+   - Estado "Escribiendo..." durante petición API.
+   - Manejo de errores con feedback de conexión.
+
+4. **`js/3d-view.js`** (Three.js 3D Scene)
+   - Escena 3D con barras animadas por estación (altura ∝ bicis disponibles).
+   - Fórmula altura: 3 + (num_bikes × 0.45) unidades.
+   - Color dinámico: verde (>5), amarillo (1-5), rojo (0).
+   - Raycasting para detección de clics en barras con tooltip interactivo.
+   - Animación suave con lerp (factor 0.05).
+   - OrbitControls para rotación/zoom/pan interactivo.
+   - Responsive: redimensionamiento automático al cambiar ventana.
+
+5. **`js/charts.js`** (Chart.js Visualization)
+   - Gráfico doughnut: Ahorro CO₂ acumulado vs Objetivo restante.
+   - Plugin personalizado con etiqueta central: "X.X kg" + "CO2 ahorrado".
+   - Cálculo sostenibilidad: totalKg = Σ(trip_count × avg_distance × 0.21).
+   - Objetivo: max(100, totalKg × 1.45).
+
+**Arquitectura:**
+- Módulos desacoplados que comparten estado via `appState` (Object exportado desde `utils.js`).
+- Coordinador mínimo en `index.html` que inicializa módulos, gestiona ciudad activa y ciclo de refresh.
+- Sin IIFE ni inyección global: imports/exports ES6 estándar.
 
 Capacidades:
 - Leaflet: mapa 2D y capas geograficas.
@@ -253,8 +300,10 @@ flowchart LR
 - Destino: Orion-LD.
 - Protocolo: HTTP.
 - Metodo: `GET`.
-- Endpoint ejemplo: `/ngsi-ld/v1/entities?type=station_status&q=city==acoruna`.
+- Endpoint ejemplo: `/ngsi-ld/v1/entities?type=station_status&q=city==acoruna&options=keyValues`.
+- Parámetro `options=keyValues`: optimización que indica a Orion-LD devolver valores planos en lugar de objetos `{"type":"Property","value":X}`, reduciendo payload y simplificando parsing en FastAPI.
 - Formato: `application/ld+json`.
+- Fallback unwrap: FastAPI incluye helper `OrionClient.unwrap()` para compatibilidad con respuestas wrapped, garantizando robustez ante distintos formatos de Orion.
 
 3. Respuesta al Frontend:
 - Origen: FastAPI.
