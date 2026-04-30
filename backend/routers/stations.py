@@ -47,30 +47,27 @@ async def list_stations(city: str = Query(default="acoruna")) -> dict[str, Any]:
 
 
 @router.get("/{station_id}/status")
-async def get_station_status(station_id: str) -> dict[str, Any]:
+async def get_station_status(station_id: str, city: str = Query(default="acoruna")) -> dict[str, Any]:
     """Return the dynamic status for a single station (NGSI-LD `station_status` entity)."""
     client = OrionClient()
-    entity_id = f"urn:ngsi-ld:station_status:acoruna:{station_id}"
+    entity_id = f"urn:ngsi-ld:station_status:{city}:{station_id}"
     try:
         ent = await client.get_entity(entity_id)
     except Exception as exc:  # pragma: no cover - scaffold fallback
         raise HTTPException(status_code=503, detail="Orion-LD is not available for the station lookup.") from exc
 
-    # Extract expected attributes
+    # Extract expected attributes (use unwrap helper as fallback)
     attrs = {}
     for k in ("num_bikes_available", "num_docks_available", "is_renting", "last_reported"):
-        val = ent.get(k)
-        if val is None:
-            # NGSI-LD attribute might be object with 'value'
-            maybe = ent.get(k) or (ent.get(k, {}).get("value") if isinstance(ent.get(k), dict) else None)
-            val = maybe
+        raw = ent.get(k)
+        val = client.unwrap(raw)
         attrs[k] = val
 
     return {"station_id": station_id, **attrs}
 
 
 @router.get("/{station_id}/forecast")
-async def get_station_forecast(station_id: str) -> dict[str, Any]:
+async def get_station_forecast(station_id: str, city: str = Query(default="acoruna")) -> dict[str, Any]:
     """Return demand forecast (t+30min, t+60min) for a station.
 
     Gathers current conditions (time, weather) and calls the predictor model.
@@ -89,7 +86,7 @@ async def get_station_forecast(station_id: str) -> dict[str, Any]:
     orion = OrionClient()
 
     # Validate station exists (best effort)
-    status_id = f"urn:ngsi-ld:station_status:acoruna:{station_id}"
+    status_id = f"urn:ngsi-ld:station_status:{city}:{station_id}"
     try:
         status = await orion.get_entity(status_id)
     except Exception as exc:
@@ -101,7 +98,7 @@ async def get_station_forecast(station_id: str) -> dict[str, Any]:
 
     # Get current weather
     try:
-        weather_entities = await orion.get_entities("WeatherObserved", "acoruna")
+        weather_entities = await orion.get_entities("WeatherObserved", city)
         weather = weather_entities[0] if weather_entities else {}
     except Exception:
         weather = {}
@@ -110,12 +107,14 @@ async def get_station_forecast(station_id: str) -> dict[str, Any]:
     # Extract weather attributes (handle NGSI-LD value wrappers)
     def extract_value(entity: dict, key: str, default: float = 0.0) -> float:
         """Extract numeric value from NGSI-LD entity (handles both raw and wrapped formats)."""
-        val = entity.get(key)
-        if val is None:
+        raw = entity.get(key)
+        if raw is None:
             return default
-        if isinstance(val, dict) and "value" in val:
-            return float(val["value"])
-        return float(val)
+        val = orion.unwrap(raw)
+        try:
+            return float(val)
+        except Exception:
+            return default
 
     wind_speed = extract_value(weather, "windSpeed", 0.0)
     precipitation = extract_value(weather, "precipitation", 0.0)
