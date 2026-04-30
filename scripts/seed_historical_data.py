@@ -244,6 +244,21 @@ def insert_in_batches(conn: Any, query: str, rows: List[Tuple[Any, ...]], batch_
     return inserted
 
 
+def historical_data_already_loaded(cursor: Any) -> bool:
+    """Return True when the historical dataset was already loaded into CrateDB.
+
+    The seed is intended for the first initialization only. If any of the tables
+    already contains rows, we skip the insert phase to avoid duplicating data.
+    """
+    for table_name in ("etstation_status", "etweatherobserved", "trips"):
+        cursor.execute(f"SELECT COUNT(*) FROM {table_name}")
+        row_count = cursor.fetchone()[0]
+        if row_count > 0:
+            print(f"Datos hist\u00f3ricos ya presentes en {table_name} ({row_count} filas). Se omite el seed.")
+            return True
+    return False
+
+
 def main() -> None:
     conn = psycopg2.connect(
         host=CRATEDB_HOST,
@@ -291,6 +306,12 @@ def main() -> None:
     """)
     
     conn.commit()
+
+    if historical_data_already_loaded(cursor):
+        cursor.close()
+        conn.close()
+        return
+
     cursor.close()
     
     end_date = datetime.now(timezone.utc).replace(tzinfo=None)

@@ -67,11 +67,17 @@ chmod +x setup.sh
 ./setup.sh
 ```
 
-Este script es **idempotente**: si una suscripción ya existe (HTTP 409), continúa sin error. Se encarga de:
+Este script es **idempotente**: si una suscripción ya existe (HTTP 409), continúa sin error. Además:
+1. `seed_current_data.py` crea o actualiza las entidades actuales de forma segura
+2. `seed_historical_data.py` solo carga histórico si CrateDB está vacío, para no duplicar series al reiniciar el entorno
+
+Se encarga de:
 1. Esperar a que Orion-LD esté disponible
 2. Registrar el service group del IoT Agent
 3. Crear las 3 suscripciones principales (station_status, WeatherObserved, Trip)
-4. Cargar datos de prueba (seed_current_data.py y seed_historical_data.py)
+4. Cargar datos de prueba iniciales
+
+Si quieres repetir el histórico desde cero, elimina los volúmenes con `docker-compose down -v` antes de volver a ejecutar el setup.
 
 Luego puedes acceder a la aplicación en **http://localhost:8081**.
 
@@ -178,6 +184,8 @@ curl -X POST http://localhost:1026/ngsi-ld/v1/subscriptions \
 ```
 
 ### 5.d Suscripción Orion-LD → QuantumLeap: Trip
+```bash
+curl -X POST http://localhost:1026/ngsi-ld/v1/subscriptions \
   -H "Content-Type: application/ld+json" \
   -H "Fiware-Service: smartmobilityhub" \
   -H "Fiware-ServicePath: /acoruna" \
@@ -202,6 +210,8 @@ curl -X POST http://localhost:1026/ngsi-ld/v1/subscriptions \
 ```
 
 ### 5.e Cargar datos actuales de prueba
+```bash
+python scripts/seed_current_data.py
 ```
 
 Este script inyecta entidades de ejemplo (`station_status`, `station_information`) en Orion-LD para la ciudad piloto (A Coruña).

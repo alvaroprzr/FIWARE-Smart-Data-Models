@@ -133,6 +133,8 @@ PAYLOAD_TRIP='{
 create_subscription "$PAYLOAD_TRIP" "Trip -> QuantumLeap"
 
 echo "Cargando datos de prueba..."
+echo "- seed_current_data.py es idempotente y actualiza/crea entidades"
+echo "- seed_historical_data.py solo carga si CrateDB está vacío para evitar duplicados"
 python3 scripts/seed_current_data.py || echo "seed_current_data.py exited with non-zero code"
 python3 scripts/seed_historical_data.py || echo "seed_historical_data.py exited with non-zero code"
 
