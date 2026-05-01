@@ -341,11 +341,12 @@ export function initMap(city) {
   appState.city = city;
   ensureMap(city);
   return {
-    loadStations: () => loadStations(city),
+    loadStations: () => loadStations(appState.city),
     refreshStations: refreshStationStatuses,
-    loadHeatmap: () => loadHeatmap(city),
+    loadHeatmap: () => loadHeatmap(appState.city),
     updateCity,
     selectStation,
+    invalidateMapSize,
   };
 }
 
@@ -362,6 +363,12 @@ export async function updateCity(city) {
     refreshStationStatuses(),
     loadHeatmap(city),
   ]);
+}
+
+export function invalidateMapSize() {
+  if (map) {
+    map.invalidateSize();
+  }
 }
 
 /**

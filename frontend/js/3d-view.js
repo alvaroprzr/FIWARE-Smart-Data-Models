@@ -9,6 +9,8 @@ let threeState = null;
 
 /**
  * Initialize the Three.js scene.
+ * Defers actual canvas creation — call resize3DScene() after the container
+ * is visible so clientWidth/clientHeight are non-zero.
  */
 function ensureThreeScene() {
   if (threeState || !window.THREE) return;
@@ -19,8 +21,9 @@ function ensureThreeScene() {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x1a1a2e);
 
-  const width = container.clientWidth || 1;
-  const height = container.clientHeight || 1;
+  // Use fallback dimensions — resize3DScene() will correct once visible
+  const width = container.clientWidth || 800;
+  const height = container.clientHeight || 600;
 
   const camera = new THREE.PerspectiveCamera(42, width / height, 0.1, 2000);
   camera.position.set(0, 55, 72);
@@ -77,7 +80,8 @@ function ensureThreeScene() {
     tooltipVisible: false,
   };
 
-  window.addEventListener('resize', resizeThreeScene);
+  // Window resize is handled by the exported resize3DScene()
+  window.addEventListener('resize', resize3DScene);
   renderer.domElement.addEventListener('click', handleThreeClick);
 }
 
@@ -169,15 +173,21 @@ function handleThreeClick(event) {
 }
 
 /**
- * Handle window resize for 3D scene.
+ * Resize the 3D scene to match its container's current dimensions.
+ * EXPORTED so the page coordinator can call it after layout changes
+ * (chat toggle, mode switch, window resize).
  */
-function resizeThreeScene() {
+export function resize3DScene() {
   if (!threeState) return;
   const container = document.getElementById('three-view');
   if (!container) return;
 
   const width = container.clientWidth || 1;
   const height = container.clientHeight || 1;
+
+  // Avoid unnecessary work if size hasn't changed
+  if (width <= 1 || height <= 1) return;
+
   threeState.camera.aspect = width / height;
   threeState.camera.updateProjectionMatrix();
   threeState.renderer.setSize(width, height, false);
@@ -347,9 +357,12 @@ function renderThreeScene() {
 
 /**
  * Initialize the 3D view.
+ * Creates the scene if needed and starts the render loop.
+ * Call resize3DScene() after calling this when the container becomes visible.
  */
 export function init3DView(containerId) {
   ensureThreeScene();
+  renderThreeScene();
 }
 
 /**
@@ -385,5 +398,7 @@ export function toggleThreeView(visible) {
     }
   } else {
     renderThreeScene();
+    // Defer resize to next frame so the container has layout dimensions
+    requestAnimationFrame(() => resize3DScene());
   }
 }

@@ -8,8 +8,6 @@ export const API_BASE = window.__SMART_MOBILITY_API_BASE__ || (
 
 export const CITY_CONFIG = {
   acoruna: { label: 'A Coruña', center: [43.366, -8.412], zoom: 14 },
-  vigo: { label: 'Vigo', center: [42.2406, -8.7207], zoom: 13 },
-  santiago: { label: 'Santiago', center: [42.8782, -8.5448], zoom: 13 },
 };
 
 // Shared application state

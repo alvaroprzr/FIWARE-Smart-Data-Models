@@ -22,6 +22,7 @@ async def list_stations(city: str = Query(default="acoruna")) -> dict[str, Any]:
     """Return list of stations by reading the single `station_information` feed.
 
     The `station_information` entity contains `data.stations[]` with the static catalog.
+    With `options=keyValues`, `data` is already the plain object (not wrapped in Property).
     """
     client = OrionClient()
     try:
@@ -32,8 +33,13 @@ async def list_stations(city: str = Query(default="acoruna")) -> dict[str, Any]:
     items: list[dict[str, Any]] = []
     if entities:
         ent = entities[0]
-        data = ent.get("data") or ent.get("data", {})
-        stations = data.get("stations") or ent.get("stations") or []
+        # With options=keyValues the data attribute is the plain dict;
+        # with full normalization it may be wrapped in {type: Property, value: ...}
+        data = client.unwrap(ent.get("data", {}))
+        if isinstance(data, dict):
+            stations = data.get("stations", [])
+        else:
+            stations = []
         for s in stations:
             # Map common fields with fallbacks
             station_id = s.get("station_id") or s.get("stationId") or s.get("id")
@@ -48,22 +54,49 @@ async def list_stations(city: str = Query(default="acoruna")) -> dict[str, Any]:
 
 @router.get("/{station_id}/status")
 async def get_station_status(station_id: str, city: str = Query(default="acoruna")) -> dict[str, Any]:
-    """Return the dynamic status for a single station (NGSI-LD `station_status` entity)."""
+    """Return the dynamic status for a single station.
+
+    Strategy:
+    1. Try per-station entity: urn:ngsi-ld:station_status:{city}:{station_id}
+    2. Fallback: Fetch the single feed entity and extract matching station from data.stations[]
+    """
     client = OrionClient()
     entity_id = f"urn:ngsi-ld:station_status:{city}:{station_id}"
+
+    # Attempt 1: per-station entity (created by seed_current_data.py)
     try:
         ent = await client.get_entity(entity_id)
-    except Exception as exc:  # pragma: no cover - scaffold fallback
-        raise HTTPException(status_code=503, detail="Orion-LD is not available for the station lookup.") from exc
+        # Extract expected attributes (handle both keyValues and wrapped formats)
+        attrs = {}
+        for k in ("num_bikes_available", "num_docks_available", "is_renting", "last_reported"):
+            raw = ent.get(k)
+            val = client.unwrap(raw)
+            attrs[k] = val
+        return {"station_id": station_id, **attrs}
+    except Exception:
+        logger.debug(f"Per-station entity {entity_id} not found, trying feed fallback")
 
-    # Extract expected attributes (use unwrap helper as fallback)
-    attrs = {}
-    for k in ("num_bikes_available", "num_docks_available", "is_renting", "last_reported"):
-        raw = ent.get(k)
-        val = client.unwrap(raw)
-        attrs[k] = val
+    # Attempt 2: single feed entity containing all stations in data.stations[]
+    try:
+        feed_entities = await client.get_entities("station_status", city)
+        if feed_entities:
+            feed = feed_entities[0]
+            data = client.unwrap(feed.get("data", {}))
+            if isinstance(data, dict):
+                for s in data.get("stations", []):
+                    sid = s.get("station_id") or s.get("stationId")
+                    if sid == station_id:
+                        return {
+                            "station_id": station_id,
+                            "num_bikes_available": s.get("num_bikes_available", 0),
+                            "num_docks_available": s.get("num_docks_available", 0),
+                            "is_renting": s.get("is_renting", True),
+                            "last_reported": s.get("last_reported"),
+                        }
+    except Exception as exc:
+        logger.warning(f"Feed fallback also failed: {exc}")
 
-    return {"station_id": station_id, **attrs}
+    raise HTTPException(status_code=404, detail=f"Station {station_id} not found.")
 
 
 @router.get("/{station_id}/forecast")
@@ -85,16 +118,35 @@ async def get_station_forecast(station_id: str, city: str = Query(default="acoru
     """
     orion = OrionClient()
 
-    # Validate station exists (best effort)
-    status_id = f"urn:ngsi-ld:station_status:{city}:{station_id}"
+    # Validate station exists (best effort) — try per-station entity first, then feed
+    status_found = False
     try:
-        status = await orion.get_entity(status_id)
-    except Exception as exc:
-        logger.warning(f"Station {station_id} lookup failed: {exc}")
+        status_id = f"urn:ngsi-ld:station_status:{city}:{station_id}"
+        await orion.get_entity(status_id)
+        status_found = True
+    except Exception:
+        pass
+
+    if not status_found:
+        # Try to find station in station_information feed
+        try:
+            info_entities = await orion.get_entities("station_information", city)
+            if info_entities:
+                data = orion.unwrap(info_entities[0].get("data", {}))
+                if isinstance(data, dict):
+                    for s in data.get("stations", []):
+                        sid = s.get("station_id") or s.get("stationId")
+                        if sid == station_id:
+                            status_found = True
+                            break
+        except Exception:
+            pass
+
+    if not status_found:
         raise HTTPException(
             status_code=404,
             detail=f"Station {station_id} not found or Orion-LD unavailable.",
-        ) from exc
+        )
 
     # Get current weather
     try:

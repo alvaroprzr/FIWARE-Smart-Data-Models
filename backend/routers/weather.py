@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
@@ -25,7 +26,7 @@ async def current_weather(city: str = Query(default="acoruna")) -> dict[str, Any
         return {"city": city, "items": []}
 
     ent = entities[0]
-    # Extract common weather attributes
+    # Extract common weather attributes (keyValues mode = already unwrapped)
     def _val(k: str):
         v = ent.get(k)
         if isinstance(v, dict):
@@ -44,10 +45,10 @@ async def current_weather(city: str = Query(default="acoruna")) -> dict[str, Any
 @router.get("/trips/heatmap")
 async def trips_heatmap(city: str = Query(default="acoruna")) -> list[dict[str, Any]]:
     """Return aggregated trips per origin station for heatmap visualization."""
-    # CrateDB access is synchronous; call in thread from routes that import this router.
     client = CrateDBClient()
     try:
-        rows = await __import__("asyncio").get_event_loop().run_in_executor(None, client.get_trips_heatmap)
+        loop = asyncio.get_event_loop()
+        rows = await loop.run_in_executor(None, client.get_trips_heatmap)
     except Exception as exc:
         raise HTTPException(status_code=503, detail="CrateDB is not available for analytics.") from exc
 

@@ -16,8 +16,6 @@ ORION_BASE_URL = "http://localhost:1026"
 ENTITIES_ENDPOINT = f"{ORION_BASE_URL}/ngsi-ld/v1/entities"
 FIWARE_HEADERS = {
     "Content-Type": "application/ld+json",
-    "Fiware-Service": "smartmobilityhub",
-    "Fiware-ServicePath": "/acoruna",
 }
 
 GBFS_CONTEXT = [
@@ -266,7 +264,7 @@ def prop(value: Any) -> Dict[str, Any]:
 
 
 def attributes_only(entity: Dict[str, Any]) -> Dict[str, Any]:
-    return {key: copy.deepcopy(value) for key, value in entity.items() if key not in {"id", "type", "@context"}}
+    return {key: copy.deepcopy(value) for key, value in entity.items() if key not in {"id", "type"}}
 
 
 def create_or_patch(entity: Dict[str, Any]) -> Tuple[bool, str]:

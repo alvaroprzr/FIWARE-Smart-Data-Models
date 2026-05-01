@@ -15,8 +15,6 @@ echo "Orion listo. Registrando IoT Agent service group..."
 # Paso 5: Registrar service group del IoT Agent
 HTTP_CODE=$(curl -s -o /dev/stderr -w "%{http_code}" -X POST ${IOTAGENT_URL}/iot/services \
   -H "Content-Type: application/json" \
-  -H "Fiware-Service: ${SERVICE}" \
-  -H "Fiware-ServicePath: ${SERVICEPATH}" \
   -d '{
     "services": [
       {
@@ -42,8 +40,6 @@ create_subscription() {
   echo "Creando suscripción ${DESC}..."
   CODE=$(curl -s -o /dev/stderr -w "%{http_code}" -X POST ${ORION_URL}/ngsi-ld/v1/subscriptions \
     -H "Content-Type: application/ld+json" \
-    -H "Fiware-Service: ${SERVICE}" \
-    -H "Fiware-ServicePath: ${SERVICEPATH}" \
     -d "${PAYLOAD}" ) || true
   if [[ "$CODE" == "201" || "$CODE" == "409" ]]; then
     echo "Suscripción ${DESC} creada o ya existía: ${CODE}"
