@@ -215,7 +215,7 @@ Sensores físicos de los anclajes y GPS de las bicicletas que envían datos de e
 | RNF-04 | Rendimiento de carga | El mapa inicial carga en menos de 3 segundos |
 | RNF-05 | Latencia IoT | Los datos de estaciones se refrescan con una latencia máxima de 30 segundos |
 | RNF-06 | Calidad ML | El modelo predictivo tiene un error medio absoluto (MAE) inferior a 2 bicicletas |
-| RNF-07 | Despliegue único | La aplicación completa se levanta con `docker-compose up` (un solo comando), incluyendo provisionamiento de Grafana |
+| RNF-07 | Despliegue único | La aplicación completa se levanta con `docker compose up` (un solo comando), incluyendo provisionamiento de Grafana y entrenamiento de modelos |
 | RNF-08 | Datos coherentes | Los datos de prueba son sintéticos pero geográficamente coherentes con A Coruña |
 | RNF-09 | Seguridad | Gestión de acceso a CrateDB y Orion CB mediante API Keys; endpoints internos no expuestos públicamente |
 | RNF-10 | Inferencia local | El asistente IA responde en menos de 5 segundos en hardware local con LM Studio |
