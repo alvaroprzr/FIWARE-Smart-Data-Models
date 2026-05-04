@@ -14,80 +14,206 @@ https://github.com/alvaroprzr/FIWARE-Smart-Data-Models
 
 ## Requisitos previos
 
-- **Docker Desktop (v24+)** o Docker Engine + Docker Compose plugin
-- **Git**
-- **LM Studio** (https://lmstudio.ai) con el modelo Gemma 2B o 7B descargado y servidor local activo en **puerto 1234**
-- **Python 3.11+** y pip (solo para ejecutar los scripts de datos de prueba)
+### Antes de instalar
+- **Docker Engine (v24+)** o Docker Desktop con Docker Compose plugin (v2.0+)
+- **Git 2.0+**
+- **Python 3.11+** y pip (solo para instalación inicial)
+- **LM Studio** (https://lmstudio.ai): descargar modelo Gemma 2B o 7B y mantener el servidor local activo en **puerto 1234** durante toda la sesión
+
+### Hardware mínimo recomendado
+- 8 GB RAM disponibles (los servicios Docker usan ~3-4 GB)
+- 20 GB de espacio en disco (imágenes Docker + volúmenes)
+- CPU multi-núcleo
 
 ---
 
-## Puesta en marcha paso a paso
+## Instalación inicial (primera vez)
 
-### 1. Clonar el repositorio
+### Paso 1: Clonar el repositorio
 
 ```bash
 git clone https://github.com/alvaroprzr/FIWARE-Smart-Data-Models.git
 cd FIWARE-Smart-Data-Models
 ```
 
-### 2. Iniciar LM Studio con Gemma
+### Paso 2: Activar LM Studio localmente
 
-Abre **LM Studio**, descarga el modelo **Gemma 2B** o **7B** (si aún no lo tienes), selecciónalo y activa el **servidor local** en **puerto 1234**. Deberías ver:
+⚠️ **Crítico**: Abre **LM Studio**, descarga el modelo **Gemma 2B** o **7B** (si no lo tienes aún), selecciónalo e inicia el **servidor local** en **puerto 1234**. Deberías ver:
 
 ```
 Server running at http://localhost:1234
 ```
 
-Mantén esta terminal abierta durante toda la sesión.
+**Mantén esta terminal abierta durante todo el proceso de instalación y todos los futuros arranques.** El backend Docker necesita conectarse a este servidor para el asistente IA.
 
-### 3. Levantar todos los servicios
+### Paso 3: Crear entorno virtual y dependencias locales
 
-```bash
-docker-compose up -d --build
-```
-
-Este comando arranca en segundo plano: MongoDB, Orion-LD, Mosquitto, IoT Agent MQTT, CrateDB, QuantumLeap, FastAPI backend, Grafana y frontend.
-
-### 4. Esperar a que los healthchecks pasen
-
-Los servicios con healthcheck (Orion-LD, IoT Agent, CrateDB) tardan **~60 segundos** en reportar estado `healthy`. Verifica el estado:
+Crea un entorno virtual Python para los scripts de setup y datos de prueba:
 
 ```bash
-docker-compose ps
+python3 -m venv .venv
+source .venv/bin/activate  # En Windows: .venv\Scripts\activate
+
+# Instalar dependencias mínimas para scripts de setup
+pip install requests psycopg2-binary
 ```
 
-Espera a que todos los servicios muestren estado `Up` (o `healthy` si tienen healthcheck).
+⚠️ **Nota**: Este entorno local (`.venv`) **solo es necesario para la instalación inicial**. Se puede eliminar después si lo deseas. El backend en Docker tiene sus propias dependencias (ver `backend/requirements.txt`).
 
-### 5. Configuración automática (recomendado)
+### Paso 4: Levantar todos los servicios Docker
 
-Para automatizar el registro del IoT Agent, crear las suscripciones y cargar datos de prueba, ejecuta el script de setup:
+```bash
+docker compose up -d --build
+```
+
+Este comando arranca en segundo plano todos los servicios: MongoDB, Orion-LD, Mosquitto, IoT Agent MQTT, CrateDB, QuantumLeap, FastAPI backend, Grafana y frontend Nginx.
+
+### Paso 5: Esperar a healthchecks y provisioning
+
+Los servicios tardan **~60 segundos** en estar listos. Verifica el estado:
+
+```bash
+docker compose ps
+```
+
+Espera a que todos muestren estado `Up` o `healthy` (indicado con una marca verde en Docker Desktop).
+
+### Paso 6: Ejecutar provisioning automático (setup)
+
+Ahora configura automáticamente el IoT Agent, crea suscripciones y carga datos de prueba:
 
 ```bash
 chmod +x setup.sh
 ./setup.sh
 ```
 
-Este script es **idempotente**: si una suscripción ya existe (HTTP 409), continúa sin error. Además:
-1. `seed_current_data.py` crea o actualiza las entidades actuales de forma segura
-2. `seed_historical_data.py` solo carga histórico si CrateDB está vacío, para no duplicar series al reiniciar el entorno
+✅ **Qué hace este script** (es idempotente):
+1. Registra el service group del IoT Agent en Orion-LD (si ya existe, lo ignora con HTTP 409)
+2. Crea 3 suscripciones: `station_status` → QuantumLeap, `WeatherObserved` → QuantumLeap, `Trip` → QuantumLeap (si existen, las preserva)
+3. Ejecuta `seed_current_data.py`: crea o actualiza las 15 estaciones y datos actuales en Orion-LD (idempotente)
+4. Ejecuta `seed_historical_data.py`: carga 90 días de histórico en CrateDB **solo si las tablas están vacías** (para no duplicar al reiniciar)
 
-Se encarga de:
-1. Esperar a que Orion-LD esté disponible
-2. Registrar el service group del IoT Agent
-3. Crear las 3 suscripciones principales (station_status, WeatherObserved, Trip)
-4. Cargar datos de prueba iniciales
+**Duración**: ~2-3 minutos (especialmente `seed_historical_data.py`, que inserta ~130k filas).
 
-Si quieres repetir el histórico desde cero, elimina los volúmenes con `docker-compose down -v` antes de volver a ejecutar el setup.
+### Paso 7: Entrenar modelo ML (dentro del contenedor)
 
-Luego puedes acceder a la aplicación en **http://localhost:8081**.
+Ahora entrena el modelo de predicción de demanda con los datos históricos:
+
+```bash
+docker compose exec fastapi-backend python ml/train.py
+```
+
+Este comando:
+- Lee 90 días de histórico desde CrateDB
+- Entrena 2 modelos RandomForest (30 min y 60 min)
+- Persiste los modelos en `/backend/ml/` (montados como volumen)
+- Habilita predicciones en los endpoints `/api/stations/{id}/forecast`
+
+**Duración**: ~1-2 minutos.
+
+### Paso 8: Verificar instalación
+
+Comprueba que todo está en marcha:
+
+```bash
+# Backend
+curl http://localhost:8000/health
+# Respuesta esperada: {"status":"healthy"}
+
+# Orion-LD
+curl http://localhost:1026/version
+# Respuesta: versión de Orion
+
+# Frontend
+open http://localhost:8081
+# Deberías ver el mapa interactivo con 15 estaciones de A Coruña
+```
+
+✅ **Instalación completada.** Puedes acceder a:
+- **Frontend interactivo**: http://localhost:8081
+- **Grafana dashboards**: http://localhost:3000 (admin / admin)
+- **API Swagger UI**: http://localhost:8000/docs
+- **Orion-LD API**: http://localhost:1026/ngsi-ld/v1/entities
+- **CrateDB admin**: http://localhost:4200
+
+---
+
+
+## Ejecución recurrente (cada vez que se reinicia)
+
+Una vez completada la instalación inicial, cada vez que quieras arrancar la plataforma:
+
+### Paso 1: Asegúrate de que LM Studio está activo
+
+⚠️ **Obligatorio**: Abre LM Studio, selecciona el modelo Gemma y confirma que el servidor está activo en **http://localhost:1234**.
+
+### Paso 2: Levantar los servicios
+
+```bash
+docker compose up -d
+```
+
+**Nota**: Sin `--build`. Solo se reconstruyen si cambias un Dockerfile o agregas dependencias Python en `backend/requirements.txt`. En caso de cambios:
+
+```bash
+docker compose up -d --build
+```
+
+### Paso 3: Esperar a healthchecks
+
+```bash
+docker compose ps
+```
+
+Espera ~60 segundos hasta que todos los servicios muestren `Up` o `healthy`.
+
+### Paso 4: Verificar que los datos persisten
+
+```bash
+# Comprueba que las estaciones están en Orion
+curl http://localhost:1026/ngsi-ld/v1/entities?type=station_status | head -c 300
+# Deberías ver estaciones como ACORUNA-001, ACORUNA-002, etc.
+```
+
+✅ **Plataforma lista.** Accede a **http://localhost:8081**.
+
+---
+
+## Detener y limpiar
+
+### Parada normal (datos persisten)
+
+```bash
+docker compose down
+```
+
+Detiene todos los contenedores pero **mantiene los volúmenes de datos** (MongoDB, CrateDB, Grafana). Los datos de estaciones, histórico y dashboards se conservan para el próximo arranque.
+
+### Reset total (destructivo)
+
+⚠️ **ADVERTENCIA**: Este comando elimina **TODOS los datos**. Úsalo solo si quieres empezar desde cero.
+
+```bash
+docker compose down -v
+```
+
+Esto borra:
+- Todas las entidades en Orion-LD (estaciones, estado actual)
+- Histórico de 90 días en CrateDB
+- Dashboards y configuración de Grafana
+- Datos de MongoDB
+
+Para restaurar el estado, vuelve a ejecutar desde el Paso 6 de la instalación inicial (`./setup.sh`).
 
 ---
 
 ### 5. (OPCIONAL) Pasos manuales alternativos
 
-Si prefieres configurar manualmente sin el script setup.sh, sigue los pasos 5.a – 5.d.
+Si prefieres configurar manualmente sin el script `setup.sh`, sigue los pasos a continuación. **Esto reemplaza completamente el Paso 6** de la instalación inicial.
 
-### 5.a Registrar el service group del IoT Agent
+⚠️ **No ejecutes ambos**: si usas esta vía, sáltate `./setup.sh` para evitar suscripciones duplicadas.
+
+### Paso A: Registrar el service group del IoT Agent
 
 ```bash
 curl -X POST http://localhost:4041/iot/services \
@@ -108,7 +234,7 @@ curl -X POST http://localhost:4041/iot/services \
 
 Respuesta esperada: HTTP 201 (Created).
 
-### 5.b Crear la suscripción Orion-LD → QuantumLeap
+### Paso B: Crear la suscripción Orion-LD → QuantumLeap (station_status)
 
 ```bash
 curl -X POST http://localhost:1026/ngsi-ld/v1/subscriptions \
@@ -155,7 +281,7 @@ curl -X POST http://localhost:1026/ngsi-ld/v1/subscriptions \
 
 Respuesta esperada: HTTP 201 (Created) con Location header.
 
-### 5.c Suscripción Orion-LD → QuantumLeap: WeatherObserved
+### Paso C: Crear la suscripción Orion-LD → QuantumLeap (WeatherObserved)
 
 ```bash
 curl -X POST http://localhost:1026/ngsi-ld/v1/subscriptions \
@@ -183,7 +309,7 @@ curl -X POST http://localhost:1026/ngsi-ld/v1/subscriptions \
   }'
 ```
 
-### 5.d Suscripción Orion-LD → QuantumLeap: Trip
+### Paso D: Crear la suscripción Orion-LD → QuantumLeap (Trip)
 ```bash
 curl -X POST http://localhost:1026/ngsi-ld/v1/subscriptions \
   -H "Content-Type: application/ld+json" \
@@ -209,69 +335,57 @@ curl -X POST http://localhost:1026/ngsi-ld/v1/subscriptions \
   }'
 ```
 
-### 5.e Cargar datos actuales de prueba
+### Paso E: Cargar datos actuales de prueba
+
 ```bash
+source .venv/bin/activate  # Si no está activado
 python scripts/seed_current_data.py
 ```
 
-Este script inyecta entidades de ejemplo (`station_status`, `station_information`) en Orion-LD para la ciudad piloto (A Coruña).
+Este script inyecta las 15 estaciones y datos actuales en Orion-LD. Envía automáticamente los headers FIWARE requeridos (`Fiware-Service`, `Fiware-ServicePath`).
 
-**Nota:** El script debe enviar los headers FIWARE `Fiware-Service: smartmobilityhub` y `Fiware-ServicePath: /acoruna` en todas las peticiones POST/PATCH a Orion-LD al crear o actualizar entidades, para garantizar la consistencia con la configuración del IoT Agent.
-
-### 5.f Cargar datos históricos de prueba
+### Paso F: Cargar datos históricos de prueba
 
 ```bash
 python scripts/seed_historical_data.py
 ```
 
-Este script inserta series temporales de ejemplo en CrateDB para permitir análisis histórico y visualizaciones en Grafana.
+Carga 90 días de histórico en CrateDB (~130k filas). El script verifica si ya existen datos y omite la carga si las tablas no están vacías.
 
-### 6. Acceder a la aplicación
+### Paso G: Entrenar modelo ML
 
-La aplicación está lista. Abre tu navegador en:
-
-```
-http://localhost:8081
+```bash
+docker compose exec fastapi-backend python ml/train.py
 ```
 
-Verás el mapa interactivo con las estaciones de bicicletas, datos en tiempo real y el asistente conversacional IA.
+### Acceso a la aplicación
+
+Todos los endpoints están listos:
+
+```
+Frontend:     http://localhost:8081
+Grafana:      http://localhost:3000
+API Swagger:  http://localhost:8000/docs
+```
 
 ---
 
 ## URLs de acceso a cada servicio
 
-| Servicio | URL | Credenciales |
-|---|---|---|
-| Frontend | http://localhost:8081 | Sin autenticación |
-| API FastAPI (Swagger UI) | http://localhost:8000/docs | Sin autenticación |
-| Grafana | http://localhost:3000 | admin / admin |
-| Orion-LD (NGSI-LD API) | http://localhost:1026/ngsi-ld/v1/entities | Sin autenticación |
-| CrateDB Admin UI | http://localhost:4200 | Sin credenciales |
-| QuantumLeap | http://localhost:8668/v2/entities | Sin autenticación |
-| IoT Agent (status) | http://localhost:4041/iot/about | Sin autenticación |
-| MQTT Broker (Mosquitto) | mqtt://localhost:1883 | Anónimo permitido |
+| Servicio | URL | Credenciales | Propósito |
+|---|---|---|---|
+| **Frontend** | http://localhost:8081 | Sin autenticación | Interfaz ciudadana: mapa, predicciones, chat |
+| **Grafana** | http://localhost:3000 | admin / admin | Dashboards analíticos y operativos |
+| **API Swagger** | http://localhost:8000/docs | Sin autenticación | Documentación interactiva de endpoints REST |
+| **Orion-LD** | http://localhost:1026/ngsi-ld/v1/entities | Sin autenticación | Consultas NGSI-LD directas (avanzado) |
+| **CrateDB Admin** | http://localhost:4200 | Sin credenciales | Gestor de base de datos (avanzado) |
+| **QuantumLeap** | http://localhost:8668/v2/entities | Sin autenticación | API de series temporales (avanzado) |
+| **IoT Agent** | http://localhost:4041/iot/about | Sin autenticación | Estado del adaptador IoT (avanzado) |
+| **MQTT** | mqtt://localhost:1883 | Anónimo | Broker de sensores (avanzado) |
 
 ---
 
-## Detener y limpiar el entorno
 
-### Parar todos los servicios
-
-```bash
-docker-compose down
-```
-
-Los volúmenes de datos persisten. Los contenedores se detienen pero no se borran.
-
-### Parar y borrar todo (reset total)
-
-```bash
-docker-compose down -v
-```
-
-Esto detiene los servicios y **elimina todos los volúmenes** (MongoDB, CrateDB, Grafana, etc.). Los datos se pierden. Úsalo cuando quieras empezar desde cero.
-
----
 
 ## Arquitectura del Frontend (Modularizado ES6)
 
@@ -313,12 +427,95 @@ El frontend utiliza una **arquitectura modularizada con 5 módulos ES6 independi
 
 ---
 
-## Generación de requirements.txt
+## Guía de troubleshooting
 
-Para actualizar la lista de dependencias de Python del backend:
+### Problema: "Port 1234 already in use" o LM Studio no accesible
+
+**Causa**: LM Studio no está corriendo o está en otro puerto.  
+**Solución**: Abre LM Studio, verifica que muestra "Server running at http://localhost:1234", y mantén la ventana abierta.
+
+### Problema: "No module named 'requests'" al ejecutar setup.sh
+
+**Causa**: El entorno virtual no fue activado o las dependencias no están instaladas.  
+**Solución**:
 
 ```bash
-cd backend && pip freeze > ../requirements.txt
+source .venv/bin/activate
+pip install requests psycopg2-binary
+./setup.sh
+```
+
+### Problema: Servicios no healthy después de 2 minutos
+
+**Causa**: Los healthchecks fallan porque un servicio previo no inició.  
+**Solución**:
+
+```bash
+# Ver logs detallados
+docker compose logs -f
+
+# Reintentar
+docker compose down
+docker compose up -d --build
+```
+
+### Problema: "Datos históricos ya presentes" pero quiero refrescar
+
+**Causa**: `seed_historical_data.py` detectó tablas no vacías.  
+**Solución**: Ejecuta reset total y reinstala:
+
+```bash
+docker compose down -v
+docker compose up -d --build
+./setup.sh
+docker compose exec fastapi-backend python ml/train.py
+```
+
+### Problema: Predicciones no disponibles en `/api/stations/{id}/forecast`
+
+**Causa**: El modelo ML no fue entrenado.  
+**Solución**:
+
+```bash
+docker compose exec fastapi-backend python ml/train.py
+```
+
+---
+
+## Referencia: Sintaxis Docker moderno
+
+✅ **Correcto** (espacio, sin guion):
+
+```bash
+docker compose up -d
+docker compose ps
+docker compose down
+docker compose exec fastapi-backend bash
+```
+
+❌ **Antiguo** (guion, no recomendado):
+
+```bash
+docker-compose up -d  # ← No uses esta forma
+```
+
+Todos los comandos en este README usan la sintaxis moderna.
+
+---
+
+## Actualizar dependencias de Python del backend
+
+Si modificas `backend/requirements.txt`, reconstruye el contenedor:
+
+```bash
+docker compose up -d --build fastapi-backend
+```
+
+Para generar un nuevo `requirements.txt` desde el entorno local:
+
+```bash
+source .venv/bin/activate
+pip freeze > backend/requirements.txt
 ```
 
 ---
@@ -348,7 +545,8 @@ El backend incluye una suite completa de tests con pytest-asyncio que valida tod
 Desde el directorio raíz del proyecto:
 
 ```bash
-# Instalar dependencias de testing (incluidas en requirements.txt)
+# Instalar dependencias de testing (activar venv primero si no está activado)
+source .venv/bin/activate
 cd backend && pip install -r requirements.txt
 
 # Ejecutar tests con verbose output
