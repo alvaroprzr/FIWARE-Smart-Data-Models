@@ -63,14 +63,13 @@ Sensores físicos de los anclajes y GPS de las bicicletas que envían datos de e
 | F-05 | Asistente IA conversacional con acceso en tiempo real a Orion CB | Ciudadano | Alta |
 | F-06 | Planificador de ruta entre estaciones con perfil de dificultad topográfico | Ciudadano | Media |
 | F-07 | Alertas de disponibilidad en estaciones favoritas (push web) | Ciudadano | Media |
-| F-08 | Vista 3D de la ciudad con estado de estaciones superpuesto | Ciudadano | Media |
-| F-09 | Dashboard histórico parametrizado por ciudad y estación (Grafana local) | Analista | Alta |
-| F-10 | Heatmap de demanda por zonas de la ciudad | Analista | Alta |
-| F-11 | Predicción de redistribución: estaciones en riesgo de vaciarse o llenarse | Analista | Alta |
-| F-12 | Correlación clima–uso: impacto de viento y lluvia en la demanda | Analista | Alta |
-| F-13 | Panel de impacto ambiental: CO₂ ahorrado, km totales, viajes | Ciudadano / Analista | Media |
-| F-14 | Interfaz web responsiva adaptada a dispositivos móviles (desde 360px) | Ciudadano | Alta |
-| F-15 | Paneles Grafana embebidos vía iFrame en el frontend ciudadano | Ciudadano / Analista | Media |
+| F-08 | Dashboard histórico parametrizado por ciudad y estación (Grafana local) | Analista | Alta |
+| F-09 | Heatmap de demanda por zonas de la ciudad | Analista | Alta |
+| F-10 | Predicción de redistribución: estaciones en riesgo de vaciarse o llenarse | Analista | Alta |
+| F-11 | Correlación clima–uso: impacto de viento y lluvia en la demanda | Analista | Alta |
+| F-12 | Panel de impacto ambiental: CO₂ ahorrado, km totales, viajes | Ciudadano / Analista | Media |
+| F-13 | Interfaz web responsiva adaptada a dispositivos móviles (desde 360px) | Ciudadano | Alta |
+| F-14 | Paneles Grafana embebidos vía iFrame en el frontend ciudadano | Ciudadano / Analista | Media |
 
 ---
 
@@ -148,17 +147,6 @@ Sensores físicos de los anclajes y GPS de las bicicletas que envían datos de e
 
 ---
 
-**HU-07**
-> *Como ciudadano, quiero explorar una visualización 3D de la ciudad con el estado de las estaciones superpuesto, para tener una perspectiva urbana inmersiva del sistema.*
-
-**Criterios de aceptación:**
-- La escena 3D renderiza el mapa urbano con altimetría real usando ThreeJS.
-- Las estaciones se representan como torres de altura proporcional al número de bicis disponibles.
-- Los colores siguen el mismo código que el mapa 2D (verde / amarillo / rojo).
-- La escena es interactiva: permite rotar, hacer zoom y clicar en estaciones para ver su detalle.
-
----
-
 ### Módulo: Dashboards Analíticos
 
 **HU-08**
@@ -173,7 +161,7 @@ Sensores físicos de los anclajes y GPS de las bicicletas que envían datos de e
 
 ---
 
-**HU-09**
+**HU-08**
 > *Como analista, quiero ver un heatmap de demanda por zonas de la ciudad, para identificar áreas con necesidad de más estaciones o redistribución de bicis.*
 
 **Criterios de aceptación:**
@@ -183,7 +171,7 @@ Sensores físicos de los anclajes y GPS de las bicicletas que envían datos de e
 
 ---
 
-**HU-10**
+**HU-09**
 > *Como analista, quiero ver la correlación entre las condiciones meteorológicas y el uso del sistema, para entender el impacto del clima en la demanda ciclista.*
 
 **Criterios de aceptación:**
@@ -193,7 +181,7 @@ Sensores físicos de los anclajes y GPS de las bicicletas que envían datos de e
 
 ---
 
-**HU-11**
+**HU-10**
 > *Como ciudadano o analista, quiero consultar el impacto ambiental acumulado del sistema, para concienciarme sobre los beneficios del transporte sostenible.*
 
 **Criterios de aceptación:**
@@ -263,7 +251,6 @@ Device             ──refStation──────► GBFSStation
 | Asistente IA | Gemma vía LM Studio (local, API compatible OpenAI) | Asistente conversacional con contexto vivo de Orion CB |
 | Frontend | HTML + JS + Tailwind CSS | Interfaz web responsiva con selector de ciudad |
 | Mapas 2D | Leaflet + OpenStreetMap | Mapa interactivo, heatmap y trazado de rutas |
-| Mapas 3D | ThreeJS | Vista inmersiva urbana con altimetría |
 | Gráficos | ChartJS | Visualizaciones inline en el frontend |
 | Análisis | Pandas, GeoPandas, Polars | Procesamiento de datos, rutas y correlaciones |
 | ML | scikit-learn / statsmodels | Modelos predictivos de demanda por estación |
