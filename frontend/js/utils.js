@@ -103,7 +103,7 @@ export function getAvailabilityColor(value) {
 }
 
 /**
- * Get availability color (hex number for Three.js).
+ * Get availability color (hex number format).
  */
 export function getAvailabilityHex(value) {
   if (value > 5) return 0x22c55e;
