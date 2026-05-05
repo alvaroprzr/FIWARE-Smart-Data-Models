@@ -53,16 +53,15 @@ La plataforma agrupa 15 funcionalidades en tres perfiles:
 - Asistente IA conversacional con acceso en tiempo real a Orion (F-05)
 - Planificador de ruta con perfil de dificultad topográfico (F-06)
 - Alertas push web en estaciones favoritas (F-07)
-- Vista 3D inmersiva de la ciudad con estado de estaciones superpuesto (F-08)
-- Panel de impacto ambiental: CO₂ ahorrado, km totales, viajes equivalentes (F-13)
-- Interfaz responsiva para dispositivos móviles desde 360px (F-14)
+- Panel de impacto ambiental: CO₂ ahorrado, km totales, viajes equivalentes (F-08)
+- Interfaz responsiva para dispositivos móviles desde 360px (F-09)
 
 **Para el Analista / Operador:**
-- Dashboard histórico parametrizado por ciudad y estación en Grafana local (F-09)
-- Heatmap de demanda por zonas de la ciudad (F-10)
-- Predicción de redistribución: estaciones en riesgo de vaciarse o llenarse (F-11)
-- Correlación clima–uso: impacto de viento y lluvia en demanda (F-12)
-- Paneles Grafana embebidos en el frontend ciudadano vía iFrame (F-15)
+- Dashboard histórico parametrizado por ciudad y estación en Grafana local (F-10)
+- Heatmap de demanda por zonas de la ciudad (F-11)
+- Predicción de redistribución: estaciones en riesgo de vaciarse o llenarse (F-12)
+- Correlación clima–uso: impacto de viento y lluvia en demanda (F-13)
+- Paneles Grafana embebidos en el frontend ciudadano vía iFrame (F-14)
 
 ---
 
@@ -102,7 +101,7 @@ flowchart LR
   end
 
   subgraph UserFlow[Flujo usuario y IA]
-    FE["Frontend estatico\nHTML+JS+Tailwind+Leaflet+ThreeJS+ChartJS\n8080"]
+    FE["Frontend estatico\nHTML+JS+Tailwind+Leaflet+ChartJS\n8080"]
     API["FastAPI backend\n8000"]
     ML["Modelo ML\nserving predicciones"]
     LLM["LM Studio + Gemma\nhttp://host.docker.internal:1234/v1"]

@@ -398,15 +398,15 @@ El frontend utiliza una **arquitectura modularizada con 5 módulos ES6 independi
 | `js/utils.js` | Estado compartido (`appState`), configuración de ciudades, funciones utilitarias | 4.5 KB |
 | `js/map.js` | Mapa Leaflet, carga de estaciones, marcadores, heatmap de viajes, predicciones | 13 KB |
 | `js/chat.js` | Panel de chat, mensajería con LLM backend vía `/api/chat` | 2.1 KB |
-| `js/3d-view.js` | Escena Three.js, barras animadas, raycasting, tooltip interactivo | 12 KB |
+
 | `js/charts.js` | Gráfico doughnut de CO₂ ahorrado con plugin de etiqueta central | 3.0 KB |
 
 ### Flujo de inicialización
 
-1. **`index.html`** carga CDN scripts (Leaflet, Chart.js, Three.js, Tailwind).
-2. **Coordinador mínimo** en `<script type="module">`:
-   - Importa los 5 módulos y `utils.js`.
-   - Inicializa cada módulo: `initMap()`, `initChat()`, `initCharts()`, `init3DView()`.
+1. **`index.html`** carga CDN scripts (Leaflet, Chart.js, Tailwind).
+2. **Coordinador minimo** en `<script type="module">`:
+   - Importa los 4 modulos y `utils.js`.
+   - Inicializa cada modulo: `initMap()`, `initChat()`, `initCharts()`.
    - Gestiona evento selector de ciudad y ciclo de refresh (30 segundos).
 3. **Estado centralizado** via `appState` (exportado desde `utils.js`): todos los módulos leen/escriben el mismo estado.
 4. **Comunicación inter-módulos**: mínima, a través de `appState` actualizado y funciones públicas (`updateStations()`, `updateChartsData()`, etc.).
@@ -530,7 +530,7 @@ pip freeze > backend/requirements.txt
 - **FastAPI** — Backend Python para orquestación, consultas y IA
 - **Gemma 2B/7B (LM Studio)** — LLM local para asistente conversacional
 - **Grafana 10.2.0** — Dashboards operativos y analíticos
-- **Frontend modularizado ES6** — 5 módulos independientes (utils, map, chat, 3d-view, charts) sin bundler, cargados via `<script type="module">`. Librerías: Tailwind CSS, Leaflet, Three.js, Chart.js
+- **Frontend modularizado ES6** — 4 modulos independientes (utils, map, chat, charts) sin bundler, cargados via `<script type="module">`. Librerias: Tailwind CSS, Leaflet, Chart.js
 - **Docker Compose** — Orquestación de contenedores
 - **NGSI-LD** — Estándar de datos (Smart Data Models, GBFS, OSLO)
 

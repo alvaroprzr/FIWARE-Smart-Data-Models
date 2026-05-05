@@ -130,7 +130,7 @@ Provisioning automatico:
 - Grafana monta un archivo de datasource en `/etc/grafana/provisioning/datasources/`.
 - Al arrancar, crea automaticamente la conexion a CrateDB sin configuracion manual en UI.
 
-### 1.7 Frontend estatico (HTML + ES6 Modules + Tailwind + Leaflet + ThreeJS + ChartJS)
+### 1.7 Frontend estatico (HTML + ES6 Modules + Tailwind + Leaflet + ChartJS)
 
 Rol:
 - Capa de experiencia de usuario para consulta de estaciones, mapa, predicciones y chat.
@@ -162,14 +162,6 @@ Rol:
    - Estado "Escribiendo..." durante petición API.
    - Manejo de errores con feedback de conexión.
 
-4. **`js/3d-view.js`** (Three.js 3D Scene)
-   - Escena 3D con barras animadas por estación (altura ∝ bicis disponibles).
-   - Fórmula altura: 3 + (num_bikes × 0.45) unidades.
-   - Color dinámico: verde (>5), amarillo (1-5), rojo (0).
-   - Raycasting para detección de clics en barras con tooltip interactivo.
-   - Animación suave con lerp (factor 0.05).
-   - OrbitControls para rotación/zoom/pan interactivo.
-   - Responsive: redimensionamiento automático al cambiar ventana.
 
 5. **`js/charts.js`** (Chart.js Visualization)
    - Gráfico doughnut: Ahorro CO₂ acumulado vs Objetivo restante.
@@ -184,7 +176,6 @@ Rol:
 
 Capacidades:
 - Leaflet: mapa 2D y capas geograficas.
-- ThreeJS: visualizacion 3D urbana (altimetria y contexto espacial).
 - ChartJS: tendencias y comparativas historicas/predictivas.
 - Tailwind + JS: UI responsive y flujo interactivo.
 
@@ -222,7 +213,7 @@ flowchart LR
   end
 
   subgraph UserFlow[Flujo usuario y IA]
-    FE["Frontend estatico\nHTML+JS+Tailwind+Leaflet+ThreeJS+ChartJS\n8081"]
+    FE["Frontend estatico\nHTML+JS+Tailwind+Leaflet+ChartJS\n8081"]
     API["FastAPI backend\n8000"]
     ML["Modelo ML\nserving predicciones"]
     LLM["LM Studio + Gemma\nhttp://host.docker.internal:1234/v1"]
