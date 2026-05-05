@@ -128,8 +128,7 @@ h1 {
   line-height: 1.5;
 }
 
-.map-canvas,
-.three-canvas {
+.map-canvas {
   width: 100%;
   min-height: 430px;
   border-radius: 18px;
@@ -216,8 +215,7 @@ canvas {
     border-radius: 20px;
   }
 
-  .map-canvas,
-  .three-canvas {
+  .map-canvas {
     min-height: 300px;
   }
 }

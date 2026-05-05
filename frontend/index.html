@@ -108,54 +108,9 @@
       font-family: 'Space Grotesk', sans-serif;
     }
 
-    .map-layer,
-    .three-layer {
+    .map-layer {
       position: absolute;
       inset: 0;
-    }
-
-    .three-tooltip {
-      position: absolute;
-      z-index: 30;
-      pointer-events: none;
-      transform: translate(-50%, calc(-100% - 12px));
-      min-width: 12rem;
-      max-width: 16rem;
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      border-radius: 1rem;
-      background: rgba(8, 15, 28, 0.94);
-      box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
-      padding: 0.8rem 0.95rem;
-      opacity: 0;
-      visibility: hidden;
-      transition: opacity 140ms ease, visibility 140ms ease;
-    }
-
-    .three-tooltip.is-visible {
-      opacity: 1;
-      visibility: visible;
-    }
-
-    .three-tooltip-name {
-      font-size: 0.9rem;
-      font-weight: 700;
-      color: #ecf3ff;
-      line-height: 1.25;
-    }
-
-    .three-tooltip-value {
-      margin-top: 0.25rem;
-      font-family: 'IBM Plex Mono', monospace;
-      font-size: 0.95rem;
-      color: #34d399;
-    }
-
-    .three-tooltip-note {
-      margin-top: 0.1rem;
-      font-size: 0.72rem;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-      color: #8ca0be;
     }
 
     .layer-hidden {
@@ -313,7 +268,7 @@
               <p class="panel-title">Selección actual</p>
               <h3 id="station-name" class="mt-1 text-2xl font-bold text-white">Cargando estaciones...</h3>
             </div>
-            <button id="mode-toggle" class="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-slate-200 transition hover:bg-white/10">Vista 3D</button>
+  
           </div>
 
           <div class="mt-4 grid grid-cols-2 gap-3">
@@ -379,8 +334,6 @@
         </button>
         <div class="relative h-full min-h-[64vh] w-full">
           <div id="map-view" class="map-layer"></div>
-          <div id="three-view" class="three-layer layer-hidden"></div>
-          <div id="three-tooltip" class="three-tooltip" aria-hidden="true"></div>
         </div>
       </section>
     </main>
@@ -409,14 +362,11 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 
   <script type="module">
     import { appState, CITY_CONFIG, cityLabel, escapeHtml, setConnection } from './js/utils.js';
     import { initMap, updateCity, toggleHeat, refreshData } from './js/map.js';
     import { initChat } from './js/chat.js';
-    import { init3DView, updateStations, toggleThreeView, resize3DScene } from './js/3d-view.js';
     import { initCharts, updateChartsData } from './js/charts.js';
 
     const dom = {
@@ -426,11 +376,9 @@
       stationSearch: document.getElementById('station-search'),
       stationSuggestions: document.getElementById('station-suggestions'),
       stationName: document.getElementById('station-name'),
-      modeToggle: document.getElementById('mode-toggle'),
       heatToggle: document.getElementById('heat-toggle'),
       refreshBtn: document.getElementById('refresh-btn'),
       mapView: document.getElementById('map-view'),
-      threeView: document.getElementById('three-view'),
       chatToggle: document.getElementById('chat-toggle'),
       chatPanel: document.getElementById('chat-panel'),
       chatFloatBtn: document.getElementById('chat-float-btn'),
@@ -472,24 +420,10 @@
 
       setTimeout(() => {
         if (mapModule && mapModule.invalidateMapSize) mapModule.invalidateMapSize();
-        if (currentMapMode === '3d') resize3DScene();
       }, 300);
     }
 
-    function setMode(mode) {
-      currentMapMode = mode;
-      dom.mapView.classList.toggle('layer-hidden', mode !== 'map');
-      dom.threeView.classList.toggle('layer-hidden', mode !== '3d');
-      dom.modeToggle.textContent = mode === 'map' ? 'Vista 3D' : 'Vista Mapa';
-      if (mode === 'map') {
-        if (mapModule && mapModule.invalidateMapSize) {
-          requestAnimationFrame(() => mapModule.invalidateMapSize());
-        }
-      } else if (mode === '3d') {
-        init3DView('three-view');
-        requestAnimationFrame(() => resize3DScene());
-      }
-    }
+
 
     function bootstrapCities() {
       dom.citySelect.innerHTML = Object.entries(CITY_CONFIG)
@@ -524,17 +458,12 @@
         loadCity(event.target.value || 'acoruna');
       });
 
-      dom.modeToggle.addEventListener('click', () => {
-        setMode(currentMapMode === 'map' ? '3d' : 'map');
-      });
-
       dom.heatToggle.addEventListener('click', () => {
         toggleHeat();
       });
 
       dom.refreshBtn.addEventListener('click', () => {
         refreshData();
-        updateStations(appState.stations);
         updateChartsData(appState.heatmap);
       });
 
@@ -568,8 +497,7 @@
       mapModule = initMap(appState.city);
       initChat(appState.city);
       initCharts();
-      init3DView('three-view');
-      setMode('map');
+      currentMapMode = 'map';
       setSidebarOpen(false);
       setChatCollapsed(false);
       attachEvents();
@@ -579,7 +507,6 @@
       // Refresh station data every 30 seconds
       setInterval(() => {
         mapModule.refreshStations();
-        updateStations(appState.stations);
         updateChartsData(appState.heatmap);
       }, 30000);
     }
@@ -587,9 +514,6 @@
     window.addEventListener('resize', () => {
       if (mapModule && mapModule.invalidateMapSize) {
         mapModule.invalidateMapSize();
-      }
-      if (currentMapMode === '3d') {
-        resize3DScene();
       }
     });
 
