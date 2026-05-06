@@ -1,0 +1,14 @@
+# Smart Mobility Hub — root-level dependencies
+# For scripts (seed_current_data.py, seed_historical_data.py) and IoT simulator.
+# Backend has its own requirements.txt inside backend/.
+#
+# Install: pip install -r requirements.txt
+
+# HTTP client for seed scripts
+requests>=2.31,<3
+
+# PostgreSQL driver for CrateDB historical seeding
+psycopg2-binary>=2.9,<3
+
+# MQTT client for IoT simulator
+paho-mqtt>=2.1,<3

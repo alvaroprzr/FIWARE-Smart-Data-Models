@@ -1,0 +1,238 @@
+{
+  "uid": "bikecoruna-smart",
+  "title": "BiciCoruña Smart",
+  "tags": ["smart-mobility-hub", "acoruna", "bicicoruna"],
+  "timezone": "Europe/Madrid",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "city",
+        "type": "custom",
+        "label": "City",
+        "hide": 0,
+        "query": "acoruna",
+        "current": {
+          "selected": true,
+          "text": "acoruna",
+          "value": "acoruna"
+        },
+        "options": [
+          {
+            "selected": true,
+            "text": "acoruna",
+            "value": "acoruna"
+          }
+        ]
+      },
+      {
+        "name": "station",
+        "type": "query",
+        "label": "Station",
+        "hide": 0,
+        "datasource": "CrateDB",
+        "query": "SELECT DISTINCT station_id FROM etstation_status ORDER BY 1",
+        "refresh": 2,
+        "multi": false,
+        "includeAll": false,
+        "current": {
+          "selected": true,
+          "text": "ACORUNA-001",
+          "value": "ACORUNA-001"
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Disponibilidad por estación",
+      "type": "timeseries",
+      "datasource": "CrateDB",
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT time, num_bikes_available, station_id FROM etstation_status WHERE station_id = '$station' AND $__timeFilter(time) ORDER BY time"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "axisPlacement": "auto"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 2,
+      "title": "Viajes por hora del día",
+      "type": "barchart",
+      "datasource": "CrateDB",
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT LPAD(CAST(EXTRACT(HOUR FROM started_at) AS string), 2, '0') as hora, COUNT(*) as viajes FROM trips WHERE $__timeFilter(started_at) GROUP BY 1 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "orientation": "auto",
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0,
+        "showValue": "never",
+        "groupWidth": 0.7,
+        "barWidth": 0.97,
+        "stacking": "none",
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        }
+      }
+    },
+    {
+      "id": 3,
+      "title": "Bicicletas disponibles por estación y hora",
+      "type": "timeseries",
+      "datasource": "CrateDB",
+      "gridPos": { "h": 9, "w": 18, "x": 0, "y": 9 },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT DATE_TRUNC('hour', time) as time, station_id, AVG(num_bikes_available) as media FROM etstation_status WHERE $__timeFilter(time) GROUP BY time, station_id ORDER BY time"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {}
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 4,
+      "title": "CO₂ ahorrado total (kg)",
+      "type": "stat",
+      "datasource": "CrateDB",
+      "gridPos": { "h": 9, "w": 6, "x": 18, "y": 9 },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT ROUND((SUM(distance_meters)/1000.0 * 0.21) * 10) / 10.0 as co2_kg FROM trips WHERE $__timeFilter(started_at)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "kg",
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 5,
+      "title": "Correlación viento vs viajes (por hora)",
+      "type": "timeseries",
+      "datasource": "CrateDB",
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 18 },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT DATE_TRUNC('hour', started_at) as time, COUNT(*) as viajes FROM trips WHERE $__timeFilter(started_at) GROUP BY time ORDER BY time"
+        },
+        {
+          "refId": "B",
+          "format": "time_series",
+          "rawSql": "SELECT time, wind_speed FROM etweatherobserved WHERE $__timeFilter(time) ORDER BY time"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "axisPlacement": "left"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "wind_speed"
+            },
+            "properties": [
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              },
+              {
+                "id": "custom.axisLabel",
+                "value": "wind_speed"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    }
+  ]
+}
