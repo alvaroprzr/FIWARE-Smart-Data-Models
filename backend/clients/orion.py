@@ -145,6 +145,26 @@ class OrionClient:
                 logger.exception("Orion patch_entity failed for %s", entity_id)
                 raise RuntimeError(f"Orion update failed for {entity_id}") from exc
 
+    async def create_subscription(self, subscription: dict[str, Any]) -> dict[str, Any]:
+        """Create a NGSI-LD subscription in Orion-LD.
+
+        This method is idempotent in the sense that if Orion responds with a
+        409/Conflict it will be ignored.
+        """
+        headers = self._headers()
+        headers["Content-Type"] = "application/ld+json"
+        async with httpx.AsyncClient(base_url=self.base_url, timeout=self.timeout, headers=headers) as client:
+            try:
+                resp = await client.post("/ngsi-ld/v1/subscriptions", json=subscription)
+                # 201 Created expected
+                resp.raise_for_status()
+                return resp.json() if resp.content else {"status": "created"}
+            except httpx.HTTPStatusError as exc:
+                # If already exists, ignore
+                if exc.response.status_code == 409:
+                    return {"status": "exists"}
+                raise RuntimeError(f"Failed to create subscription: {exc}") from exc
+
     async def query_entity_by_type_and_id(self, type_: str, id_hint: str) -> list[dict[str, Any]]:
         # Convenience: query entities by type and id-like hint
         results = await self.get_entities(type_, None)

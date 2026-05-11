@@ -7,7 +7,6 @@ import {
 
 let map = null;
 let markers = new Map();
-let heatLayer = null;
 let popupListenerAttached = false;
 
 /**
@@ -241,43 +240,6 @@ async function selectStation(stationId, options = {}) {
 }
 
 /**
- * Update the heatmap layer from trip data.
- */
-function updateHeatmap() {
-  if (!map) return;
-  const points = appState.heatmap
-    .map((row) => {
-      const station = appState.stationById.get(row.station_id);
-      if (!station) return null;
-      const lat = numberValue(station.lat, NaN);
-      const lon = numberValue(station.lon, NaN);
-      if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
-      return [lat, lon, Math.max(0.05, numberValue(row.intensity, 0.1))];
-    })
-    .filter(Boolean);
-
-  if (heatLayer) {
-    map.removeLayer(heatLayer);
-    heatLayer = null;
-  }
-
-  if (appState.heatVisible && points.length && window.L.heatLayer) {
-    heatLayer = L.heatLayer(points, {
-      radius: 30,
-      blur: 24,
-      maxZoom: 17,
-      minOpacity: 0.2,
-      gradient: { 0.1: '#0f172a', 0.35: '#38bdf8', 0.6: '#34d399', 0.85: '#fbbf24', 1: '#fb7185' },
-    }).addTo(map);
-  }
-
-  const heatToggle = document.getElementById('heat-toggle');
-  if (heatToggle) {
-    heatToggle.textContent = appState.heatVisible ? 'Ocultar heatmap' : 'Mostrar heatmap';
-  }
-}
-
-/**
  * Load stations from the API for a given city.
  */
 async function loadStations(city = appState.city, preserveSelection = false) {
@@ -328,23 +290,7 @@ async function refreshStationStatuses() {
   updateSidebar(appState.stationById.get(appState.selectedStationId) || appState.stations[0] || null);
 }
 
-/**
- * Load heatmap data from the API.
- */
-async function loadHeatmap(city = appState.city) {
-  try {
-    const rows = await requestJSON(`/api/weather/trips/heatmap?city=${encodeURIComponent(city)}`);
-    appState.heatmap = Array.isArray(rows) ? rows : [];
-    updateHeatmap();
-    setConnection(true, `Conectado · ${cityLabel(city)}`);
-    appState.lastGoodDataAt = Date.now();
-  } catch (error) {
-    console.warn('Heatmap failed', error);
-    appState.heatmap = [];
-    updateHeatmap();
-    setConnection(false, 'Sin conexión');
-  }
-}
+
 
 /**
  * Initialize the map module and return public API.
@@ -355,7 +301,6 @@ export function initMap(city) {
   return {
     loadStations: () => loadStations(appState.city),
     refreshStations: refreshStationStatuses,
-    loadHeatmap: () => loadHeatmap(appState.city),
     updateCity,
     selectStation,
     invalidateMapSize,
@@ -373,7 +318,6 @@ export async function updateCity(city) {
   await loadStations(city, false);
   await Promise.allSettled([
     refreshStationStatuses(),
-    loadHeatmap(city),
   ]);
 }
 
@@ -387,11 +331,9 @@ export function invalidateMapSize() {
  * Export internal functions for coordinator access if needed.
  */
 export function toggleHeat() {
-  appState.heatVisible = !appState.heatVisible;
-  updateHeatmap();
+  // heatmap removed in this build
 }
 
 export function refreshData() {
   refreshStationStatuses();
-  loadHeatmap(appState.city);
 }

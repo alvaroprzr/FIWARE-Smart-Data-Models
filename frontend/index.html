@@ -266,9 +266,12 @@
           <div class="flex items-start justify-between gap-4">
             <div>
               <p class="panel-title">Selección actual</p>
-              <h3 id="station-name" class="mt-1 text-2xl font-bold text-white">Cargando estaciones...</h3>
+              <div class="flex items-center gap-2">
+                <h3 id="station-name" class="mt-1 text-2xl font-bold text-white">Cargando estaciones...</h3>
+                <button id="favorite-btn" title="Marcar como favorito" class="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-xs text-slate-200">⭐</button>
+              </div>
             </div>
-  
+
           </div>
 
           <div class="mt-4 grid grid-cols-2 gap-3">
@@ -277,7 +280,7 @@
               <div id="station-bikes" class="mt-1 text-4xl font-bold">--</div>
             </div>
             <div class="rounded-2xl border border-sky-400/15 bg-sky-400/8 p-4">
-              <p class="panel-title">Docks libres</p>
+              <p class="panel-title">Plazas libres</p>
               <div id="station-docks" class="mt-1 text-4xl font-bold">--</div>
             </div>
           </div>
@@ -322,12 +325,18 @@
             <canvas id="co2-chart"></canvas>
           </div>
         </section>
+
+        <section class="mt-4 rounded-3xl border border-white/10 bg-slate-950/65 p-4">
+          <div class="mb-2 flex items-center justify-between">
+            <h3 class="text-sm font-bold text-white">Favoritos</h3>
+            <button id="favorites-refresh" class="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-xs text-slate-200">Actualizar</button>
+          </div>
+          <ul id="favorites-list" class="space-y-2 text-sm text-slate-300"></ul>
+        </section>
       </aside>
 
       <section class="main-panel glass relative min-h-[64vh] flex-1 overflow-hidden rounded-[1.75rem] shadow-glow">
         <div class="absolute bottom-6 left-1/2 z-[1050] flex -translate-x-1/2 flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/80 p-2 shadow-2xl backdrop-blur-md">
-          <button id="heat-toggle" class="rounded-xl px-4 py-2 text-xs font-semibold text-white transition hover:bg-white/10">Ocultar heatmap</button>
-          <div class="h-4 w-px bg-white/20"></div>
           <button id="dashboard-toggle" class="rounded-xl bg-sky-500/20 px-4 py-2 text-xs font-semibold text-sky-400 transition hover:bg-sky-500/30 hover:text-sky-300">Ver Dashboard</button>
           <div class="h-4 w-px bg-white/20"></div>
           <button id="refresh-btn" class="rounded-xl px-4 py-2 text-xs font-semibold text-white transition hover:bg-white/10">Actualizar</button>
@@ -364,12 +373,12 @@
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+  
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
 
   <script type="module">
-    import { appState, CITY_CONFIG, cityLabel, escapeHtml, setConnection } from './js/utils.js';
-    import { initMap, updateCity, toggleHeat, refreshData } from './js/map.js';
+    import { appState, CITY_CONFIG, cityLabel, escapeHtml, setConnection, requestJSON } from './js/utils.js';
+    import { initMap, updateCity, refreshData } from './js/map.js';
     import { initChat } from './js/chat.js';
     import { initCharts, updateChartsData } from './js/charts.js';
 
@@ -380,7 +389,6 @@
       stationSearch: document.getElementById('station-search'),
       stationSuggestions: document.getElementById('station-suggestions'),
       stationName: document.getElementById('station-name'),
-      heatToggle: document.getElementById('heat-toggle'),
       dashboardToggle: document.getElementById('dashboard-toggle'),
       refreshBtn: document.getElementById('refresh-btn'),
       mapView: document.getElementById('map-view'),
@@ -394,6 +402,66 @@
     let currentMapMode = 'map';
     let sidebarOpen = false;
     let chatCollapsed = false;
+
+    function getClientId() {
+      const key = 'smh_client_id';
+      let clientId = localStorage.getItem(key);
+      if (!clientId) {
+        clientId = 'client-' + Math.random().toString(36).slice(2, 10);
+        localStorage.setItem(key, clientId);
+      }
+      return clientId;
+    }
+
+    async function loadFavorites() {
+      const list = document.getElementById('favorites-list');
+      if (!list) return;
+      const clientId = getClientId();
+      try {
+        const payload = await requestJSON(`/api/alerts/favorites?client_id=${encodeURIComponent(clientId)}`);
+        const items = Array.isArray(payload?.favorites) ? payload.favorites : [];
+        if (!items.length) {
+          list.innerHTML = '<li class="text-xs text-slate-500">Sin estaciones favoritas</li>';
+          return;
+        }
+        list.innerHTML = items.map((sid) => (
+          `<li class="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-3 py-2">`
+          + `<button class="text-left text-slate-200 hover:text-white js-fav-open" data-station-id="${escapeHtml(sid)}">${escapeHtml(sid)}</button>`
+          + `<button class="rounded-md border border-rose-400/30 bg-rose-400/10 px-2 py-1 text-xs text-rose-300 js-fav-remove" data-station-id="${escapeHtml(sid)}">Quitar</button>`
+          + `</li>`
+        )).join('');
+
+        list.querySelectorAll('.js-fav-remove').forEach((btn) => {
+          btn.addEventListener('click', async () => {
+            const sid = btn.getAttribute('data-station-id');
+            if (!sid) return;
+            try {
+              await requestJSON('/api/alerts/favorite', {
+                method: 'DELETE',
+                body: JSON.stringify({ client_id: clientId, station_id: sid }),
+              });
+              await loadFavorites();
+              setConnection(true, 'Favorito eliminado');
+            } catch (err) {
+              console.warn('Favorite remove failed', err);
+              setConnection(false, 'No se pudo eliminar favorito');
+            }
+          });
+        });
+
+        list.querySelectorAll('.js-fav-open').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            const sid = btn.getAttribute('data-station-id');
+            if (sid && mapModule && mapModule.selectStation) {
+              mapModule.selectStation(sid);
+            }
+          });
+        });
+      } catch (err) {
+        console.warn('Favorites load failed', err);
+        list.innerHTML = '<li class="text-xs text-rose-300">No se pudieron cargar favoritos</li>';
+      }
+    }
 
     async function renderStationSuggestions(stations) {
       dom.stationSuggestions.innerHTML = stations.map((station) => {
@@ -446,11 +514,11 @@
         await mapModule.loadStations();
         await Promise.allSettled([
           mapModule.refreshStations(),
-          mapModule.loadHeatmap(),
         ]);
         renderStationSuggestions(appState.stations);
         updateStations(appState.stations);
-        updateChartsData(appState.heatmap);
+        // charts module will fetch analytics data itself
+        updateChartsData();
         setConnection(true, `Conectado · ${cityLabel(city)}`);
       } catch (error) {
         console.error('loadCity failed', error);
@@ -464,9 +532,7 @@
         loadCity(event.target.value || 'acoruna');
       });
 
-      dom.heatToggle.addEventListener('click', () => {
-        toggleHeat();
-      });
+      // heatmap removed: no-op
 
       dom.dashboardToggle.addEventListener('click', () => {
         if (currentMapMode === 'map') {
@@ -492,7 +558,7 @@
 
       dom.refreshBtn.addEventListener('click', () => {
         refreshData();
-        updateChartsData(appState.heatmap);
+        updateChartsData();
       });
 
       dom.sidebarToggle.addEventListener('click', () => {
@@ -518,6 +584,37 @@
           }
         });
       }
+
+      // Favorite button: store favorite for client in backend
+      const favBtn = document.getElementById('favorite-btn');
+      if (favBtn) {
+        favBtn.addEventListener('click', async () => {
+          const clientId = getClientId();
+          const stationId = appState.selectedStationId;
+          if (!stationId) {
+            setConnection(false, 'Selecciona una estación primero');
+            return;
+          }
+          try {
+            await requestJSON('/api/alerts/favorite', {
+              method: 'POST',
+              body: JSON.stringify({ client_id: clientId, station_id: stationId }),
+            });
+            await loadFavorites();
+            setConnection(true, 'Favorito guardado');
+          } catch (err) {
+            console.warn('Favorite save failed', err);
+            setConnection(false, 'No se pudo guardar favorito');
+          }
+        });
+      }
+
+      const favRefreshBtn = document.getElementById('favorites-refresh');
+      if (favRefreshBtn) {
+        favRefreshBtn.addEventListener('click', () => {
+          loadFavorites();
+        });
+      }
     }
 
     async function bootstrap() {
@@ -531,11 +628,12 @@
       attachEvents();
 
       await loadCity(appState.city);
+      await loadFavorites();
 
       // Refresh station data every 30 seconds
       setInterval(() => {
         mapModule.refreshStations();
-        updateChartsData(appState.heatmap);
+        updateChartsData();
       }, 30000);
     }
 

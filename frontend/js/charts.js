@@ -1,6 +1,6 @@
 // Charts module: CO2 savings doughnut chart powered by heatmap data.
 
-import { appState, numberValue } from './utils.js';
+import { appState, numberValue, requestJSON } from './utils.js';
 
 let co2Chart = null;
 
@@ -92,14 +92,29 @@ let co2Chart = null;
 /**
  * Initialize the charts module.
  */
-export function initCharts() {
-  // Initial render with empty data
-  updateCharts([]);
+export async function initCharts() {
+  // Initial render: fetch heatmap/trips aggregation from backend
+  try {
+    const rows = await requestJSON('/api/weather/trips/heatmap');
+    updateCharts(rows || []);
+  } catch (e) {
+    updateCharts([]);
+  }
 }
 
 /**
  * Update the charts with new heatmap data (called by coordinator).
  */
-export function updateChartsData(heatmapData) {
+export async function updateChartsData(heatmapData) {
+  if (typeof heatmapData === 'undefined') {
+    try {
+      const rows = await requestJSON('/api/weather/trips/heatmap');
+      updateCharts(rows || []);
+      return;
+    } catch (e) {
+      updateCharts([]);
+      return;
+    }
+  }
   updateCharts(heatmapData);
 }
