@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import math
+import os
 import random
 from datetime import datetime, timedelta, timezone
 from typing import Any, List, Tuple
@@ -12,8 +13,8 @@ import psycopg2
 import psycopg2.extras
 
 
-CRATEDB_HOST = "localhost"
-CRATEDB_PORT = 5432
+CRATEDB_HOST = os.environ.get("CRATEDB_HOST", "localhost")
+CRATEDB_PORT = int(os.environ.get("CRATEDB_PORT", "5432"))
 CRATEDB_DB = "crate"
 CRATEDB_USER = "crate"
 CRATEDB_PASSWORD = ""

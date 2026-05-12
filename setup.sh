@@ -43,7 +43,7 @@ echo "Provisioning IoT Agent devices..."
 for i in $(seq 1 15); do
   DEVICE_ID=$(printf "ACORUNA-%03d" "$i")
   ENTITY_ID="urn:ngsi-ld:station_status:acoruna:${DEVICE_ID}"
-  STATION_ENTITY_ID="urn:ngsi-ld:station_information:acoruna:${DEVICE_ID}"
+  STATION_ENTITY_ID="urn:ngsi-ld:station_information:acoruna:bicicoruna"
   DEVICE_PAYLOAD=$(cat <<EOF
 {
   "devices": [

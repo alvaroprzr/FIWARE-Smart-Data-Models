@@ -50,7 +50,8 @@ async def ensure_orion_subscriptions() -> None:
     orion = OrionClient()
 
     # QuantumLeap notify endpoint (for historical persistence)
-    ql_endpoint = os.getenv("QUANTUMLEAP_URL", "http://quantumleap:8668/v2/notify")
+    ql_base = os.getenv("QUANTUMLEAP_URL", "http://quantumleap:8668")
+    ql_endpoint = ql_base.rstrip("/") + "/v2/notify"
 
     # Backend notify endpoint to receive Orion notifications for alerts
     backend_notify = os.getenv("BACKEND_NOTIFY_URL", "http://fastapi-backend:8000/api/alerts/notify")

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import copy
 import json
+import os
 import random
 from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, List, Tuple
@@ -12,7 +13,7 @@ from typing import Any, Dict, Iterable, List, Tuple
 import requests
 
 
-ORION_BASE_URL = "http://localhost:1026"
+ORION_BASE_URL = os.environ.get("ORION_URL", "http://localhost:1026")
 ENTITIES_ENDPOINT = f"{ORION_BASE_URL}/ngsi-ld/v1/entities"
 FIWARE_HEADERS = {
     "Content-Type": "application/ld+json",
@@ -30,6 +31,13 @@ WEATHER_CONTEXT = [
 ]
 DEVICE_CONTEXT = [
     "https://raw.githubusercontent.com/smart-data-models/dataModel.Device/master/context.jsonld",
+]
+OSLO_CONTEXT = [
+    "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context.jsonld",
+    "https://raw.githubusercontent.com/smart-data-models/dataModel.OSLO/master/context.jsonld",
+]
+OSLO_TRIP_CONTEXT = [
+    "https://data.vlaanderen.be/doc/applicatieprofiel/mobiliteit-trips-en-aanbod/erkendestandaard/2020-04-23/context/mobiliteit-trips-en-aanbod-ap.jsonld",
 ]
 
 NOW = datetime.now(timezone.utc)
@@ -347,48 +355,46 @@ def build_weather_observed() -> Dict[str, Any]:
     )
 
 
-def build_station_information_entities() -> List[Dict[str, Any]]:
-    """Create 15 individual station_information entities (per-station model)."""
-    entities: List[Dict[str, Any]] = []
+def build_station_information() -> Dict[str, Any]:
+    """Create the single station_information feed entity with all stations in data.stations[]."""
+    stations_data = []
     for station in STATIONS:
         sid = station["station_id"]
-        entities.append(
-            ngsi_entity(
-                f"urn:ngsi-ld:station_information:acoruna:{sid}",
-                "station_information",
-                {
-                    "last_updated": prop(NOW_EPOCH),
-                    "ttl": prop(30),
-                    "version": prop("3.0"),
-                    "station_id": prop(sid),
-                    "name": prop(station["name"]),
-                    "short_name": prop(station["short_name"]),
-                    "address": prop(station["address"]),
-                    "cross_street": prop(station["cross_street"]),
-                    "region_id": prop(station["region_id"]),
-                    "post_code": prop(station["post_code"]),
-                    "capacity": prop(station["capacity"]),
-                    "is_valet_station": prop(False),
-                    "is_virtual_station": prop(False),
-                    "rental_methods": prop(["creditcard", "phone"]),
-                    "rental_uris": prop({
-                        "android": f"https://bicicoruna.example.com/rent/android/{sid.lower()}",
-                        "ios": f"https://bicicoruna.example.com/rent/ios/{sid.lower()}",
-                        "web": f"https://bicicoruna.example.com/rent/{sid.lower()}",
-                    }),
-                    "location": {
-                        "type": "GeoProperty",
-                        "value": {"type": "Point", "coordinates": [station["lon"], station["lat"]]},
-                    },
-                    "refWeather": {
-                        "type": "Relationship",
-                        "object": "urn:ngsi-ld:WeatherObserved:acoruna:marina-001",
-                    },
-                },
-                GBFS_CONTEXT,
-            )
-        )
-    return entities
+        stations_data.append({
+            "station_id": sid,
+            "name": station["name"],
+            "short_name": station["short_name"],
+            "lat": station["lat"],
+            "lon": station["lon"],
+            "address": station["address"],
+            "cross_street": station["cross_street"],
+            "region_id": station["region_id"],
+            "post_code": station["post_code"],
+            "capacity": station["capacity"],
+            "is_valet_station": False,
+            "is_virtual_station": False,
+            "rental_methods": ["creditcard", "phone"],
+            "rental_uris": {
+                "android": f"https://bicicoruna.example.com/rent/android/{sid.lower()}",
+                "ios": f"https://bicicoruna.example.com/rent/ios/{sid.lower()}",
+                "web": f"https://bicicoruna.example.com/rent/{sid.lower()}",
+            },
+        })
+    return ngsi_entity(
+        "urn:ngsi-ld:station_information:acoruna:bicicoruna",
+        "station_information",
+        {
+            "last_updated": prop(NOW_EPOCH),
+            "ttl": prop(30),
+            "version": prop("3.0"),
+            "data": prop({"stations": stations_data}),
+            "refWeather": {
+                "type": "Relationship",
+                "object": "urn:ngsi-ld:WeatherObserved:acoruna:marina-001",
+            },
+        },
+        GBFS_CONTEXT,
+    )
 
 
 def build_system_information() -> Dict[str, Any]:
@@ -399,16 +405,21 @@ def build_system_information() -> Dict[str, Any]:
             "last_updated": prop(NOW_EPOCH),
             "ttl": prop(3600),
             "version": prop("3.0"),
-            "system_id": prop("bicicoruna"),
-            "language": prop("es"),
-            "name": prop("BiciCoruna"),
-            "operator": prop("Concello de A Coruna"),
-            "url": prop("https://bicicoruna.example.com"),
-            "purchase_url": prop("https://bicicoruna.example.com/tarifas"),
-            "start_date": prop(START_DATE),
-            "timezone": prop("Europe/Madrid"),
-            "phone_number": prop("+34981000000"),
-            "email": prop("info@bicicoruna.example.com"),
+            "data": prop({
+                "system_id": "bicicoruna",
+                "language": "es",
+                "name": "BiciCoruna",
+                "short_name": "BiciCoruna",
+                "operator": "Concello de A Coruna",
+                "url": "https://bicicoruna.example.com",
+                "purchase_url": "https://bicicoruna.example.com/tarifas",
+                "start_date": START_DATE,
+                "timezone": "Europe/Madrid",
+                "phone_number": "+34981000000",
+                "email": "info@bicicoruna.example.com",
+                "feed_contact_email": "feeds@bicicoruna.example.com",
+                "license_url": "https://bicicoruna.example.com/legal/license",
+            }),
         },
         GBFS_CONTEXT,
     )
@@ -442,7 +453,7 @@ def build_device_entities() -> List[Dict[str, Any]]:
                     },
                     "refStation": {
                         "type": "Relationship",
-                        "object": f"urn:ngsi-ld:station_information:acoruna:{device_id}",
+                        "object": "urn:ngsi-ld:station_information:acoruna:bicicoruna",
                     },
                 },
                 DEVICE_CONTEXT,
@@ -474,7 +485,7 @@ def build_station_status_entities() -> List[Dict[str, Any]]:
                     "num_docks_disabled": prop(0),
                     "refStation": {
                         "type": "Relationship",
-                        "object": f"urn:ngsi-ld:station_information:acoruna:{station['station_id']}",
+                        "object": "urn:ngsi-ld:station_information:acoruna:bicicoruna",
                     },
                 },
                 GBFS_CONTEXT,
@@ -511,13 +522,149 @@ def build_free_bike_status() -> Dict[str, Any]:
             "ttl": prop(30),
             "version": prop("3.0"),
             "data": prop({"bikes": bikes}),
-            "refSystem": {
+            "refStation": {
                 "type": "Relationship",
-                "object": "urn:ngsi-ld:system_information:acoruna:bicicoruna",
+                "object": "urn:ngsi-ld:station_information:acoruna:bicicoruna",
             },
         },
         GBFS_CONTEXT,
     )
+
+
+def build_mobility_station_entities() -> List[Dict[str, Any]]:
+    """Create BicycleParkingStation entities (OSLO) for each station."""
+    entities: List[Dict[str, Any]] = []
+    for station in STATIONS:
+        sid = station["station_id"]
+        entities.append(
+            ngsi_entity(
+                f"urn:ngsi-ld:BicycleParkingStation:acoruna:{sid}",
+                "BicycleParkingStation",
+                {
+                    "ParkingFacility.capacity": prop({
+                        "type": "Capacity",
+                        "Capacity.total": station["capacity"],
+                    }),
+                    "InfrastructureElement.geometry": prop({
+                        "type": "Geometry",
+                        "Geometry.asWkt": f"POINT({station['lon']} {station['lat']})",
+                    }),
+                    "location": {
+                        "type": "GeoProperty",
+                        "value": {"type": "Point", "coordinates": [station["lon"], station["lat"]]},
+                    },
+                    "address": prop({
+                        "addressCountry": "ES",
+                        "addressLocality": "A Coruna",
+                        "addressRegion": "Galicia",
+                        "streetAddress": station["address"],
+                        "postalCode": station["post_code"],
+                    }),
+                    "refGBFSStation": {
+                        "type": "Relationship",
+                        "object": "urn:ngsi-ld:station_information:acoruna:bicicoruna",
+                    },
+                },
+                OSLO_CONTEXT,
+            )
+        )
+    return entities
+
+
+def build_geofencing_zone() -> Dict[str, Any]:
+    """Create a GBFSGeofencingZone entity covering central A Coruña."""
+    return ngsi_entity(
+        "urn:ngsi-ld:geofencing_zones:acoruna:bicicoruna",
+        "geofencing_zones",
+        {
+            "last_updated": prop(NOW_EPOCH),
+            "ttl": prop(300),
+            "version": prop("3.0"),
+            "data": prop({
+                "geofencing_zones": {
+                    "features": [
+                        {
+                            "type": "Feature",
+                            "geometry": {
+                                "type": "MultiPolygon",
+                                "coordinates": [
+                                    [
+                                        [
+                                            [-8.4095, 43.3770],
+                                            [-8.3880, 43.3770],
+                                            [-8.3880, 43.3610],
+                                            [-8.4095, 43.3610],
+                                            [-8.4095, 43.3770],
+                                        ]
+                                    ]
+                                ],
+                            },
+                            "properties": {
+                                "name": "A Coruna zona operacional BiciCoruna",
+                                "start": NOW_EPOCH,
+                                "end": NOW_EPOCH + 86400 * 365,
+                                "rules": [
+                                    {
+                                        "vehicle_type_id": ["regular bike"],
+                                        "ride_allowed": True,
+                                        "ride_through_allowed": True,
+                                        "maximum_speed_kph": 25,
+                                    }
+                                ],
+                            },
+                        }
+                    ]
+                }
+            }),
+        },
+        GBFS_CONTEXT,
+    )
+
+
+def build_trip_entities() -> List[Dict[str, Any]]:
+    """Create a representative set of Trip entities in Orion CB (OSLO Mobility Trips AP)."""
+    import datetime as _dt
+
+    trip_pairs = [
+        ("ACORUNA-001", "ACORUNA-011"),
+        ("ACORUNA-002", "ACORUNA-008"),
+        ("ACORUNA-003", "ACORUNA-006"),
+        ("ACORUNA-007", "ACORUNA-012"),
+        ("ACORUNA-004", "ACORUNA-010"),
+    ]
+    entities: List[Dict[str, Any]] = []
+    base_time = NOW.replace(hour=8, minute=0, second=0, microsecond=0)
+    for i, (origin_id, dest_id) in enumerate(trip_pairs):
+        dep = base_time + _dt.timedelta(minutes=i * 20)
+        arr = dep + _dt.timedelta(minutes=15 + i * 3)
+        dep_iso = dep.isoformat().replace("+00:00", "Z")
+        arr_iso = arr.isoformat().replace("+00:00", "Z")
+        trip_id = f"urn:ngsi-ld:Trip:acoruna:{dep.strftime('%Y%m%d')}-{i+1:04d}"
+        device_id = f"urn:ngsi-ld:Device:acoruna:{origin_id}"
+        entities.append(
+            ngsi_entity(
+                trip_id,
+                "Trip",
+                {
+                    "departureTime": prop(dep_iso),
+                    "arrivalTime": prop(arr_iso),
+                    "refOrigin": {
+                        "type": "Relationship",
+                        "object": f"urn:ngsi-ld:station_information:acoruna:{origin_id}",
+                    },
+                    "refDestination": {
+                        "type": "Relationship",
+                        "object": f"urn:ngsi-ld:station_information:acoruna:{dest_id}",
+                    },
+                    "refVehicle": {
+                        "type": "Relationship",
+                        "object": device_id,
+                    },
+                },
+                OSLO_TRIP_CONTEXT,
+            )
+        )
+    return entities
 
 
 def seed_entities(entities: Iterable[Dict[str, Any]]) -> None:
@@ -529,11 +676,14 @@ def main() -> None:
     entities_in_order = [
         build_weather_observed(),
         build_system_information(),
+        build_station_information(),
     ]
-    entities_in_order.extend(build_station_information_entities())
     entities_in_order.extend(build_device_entities())
     entities_in_order.extend(build_station_status_entities())
     entities_in_order.append(build_free_bike_status())
+    entities_in_order.append(build_geofencing_zone())
+    entities_in_order.extend(build_mobility_station_entities())
+    entities_in_order.extend(build_trip_entities())
     seed_entities(entities_in_order)
 
 

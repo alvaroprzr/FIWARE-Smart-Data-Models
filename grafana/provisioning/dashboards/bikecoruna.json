@@ -52,35 +52,53 @@
   "panels": [
     {
       "id": 1,
-      "title": "Disponibilidad por estación",
-      "type": "timeseries",
+      "title": "Disponibilidad media por estación",
+      "type": "barchart",
       "datasource": "CrateDB",
       "gridPos": { "h": 9, "w": 12, "x": 0, "y": 0 },
       "targets": [
         {
           "refId": "A",
-          "format": "time_series",
-          "rawSql": "SELECT time, num_bikes_available, station_id FROM etstation_status WHERE station_id = '$station' AND $__timeFilter(time) ORDER BY time"
+          "format": "table",
+          "rawSql": "SELECT station_id, AVG(num_bikes_available) as media_bicis, AVG(num_docks_available) as media_plazas FROM etstation_status WHERE $__timeFilter(time) GROUP BY station_id ORDER BY media_bicis DESC"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "custom": {
-            "axisPlacement": "auto"
-          }
+          "custom": {}
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "media_bicis" },
+            "properties": [
+              { "id": "displayName", "value": "Bicis disponibles (media)" },
+              { "id": "color", "value": { "fixedColor": "#22c55e", "mode": "fixed" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "media_plazas" },
+            "properties": [
+              { "id": "displayName", "value": "Plazas libres (media)" },
+              { "id": "color", "value": { "fixedColor": "#60a5fa", "mode": "fixed" } }
+            ]
+          }
+        ]
       },
       "options": {
+        "orientation": "horizontal",
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0,
+        "showValue": "auto",
+        "groupWidth": 0.7,
+        "barWidth": 0.9,
+        "stacking": "none",
+        "xField": "station_id",
         "legend": {
-          "calcs": [],
           "displayMode": "list",
-          "placement": "bottom"
+          "placement": "bottom",
+          "calcs": []
         },
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        }
+        "tooltip": { "mode": "single", "sort": "none" }
       }
     },
     {
@@ -181,7 +199,7 @@
     },
     {
       "id": 5,
-      "title": "Correlación viento vs viajes (por hora)",
+      "title": "Correlación clima vs viajes (viento y precipitación)",
       "type": "timeseries",
       "datasource": "CrateDB",
       "gridPos": { "h": 9, "w": 24, "x": 0, "y": 18 },
@@ -195,6 +213,11 @@
           "refId": "B",
           "format": "time_series",
           "rawSql": "SELECT time, wind_speed FROM etweatherobserved WHERE $__timeFilter(time) ORDER BY time"
+        },
+        {
+          "refId": "C",
+          "format": "time_series",
+          "rawSql": "SELECT time, precipitation FROM etweatherobserved WHERE $__timeFilter(time) ORDER BY time"
         }
       ],
       "fieldConfig": {
@@ -205,33 +228,91 @@
         },
         "overrides": [
           {
-            "matcher": {
-              "id": "byName",
-              "options": "wind_speed"
-            },
+            "matcher": { "id": "byName", "options": "wind_speed" },
             "properties": [
-              {
-                "id": "custom.axisPlacement",
-                "value": "right"
-              },
-              {
-                "id": "custom.axisLabel",
-                "value": "wind_speed"
-              }
+              { "id": "custom.axisPlacement", "value": "right" },
+              { "id": "custom.axisLabel", "value": "Viento (m/s)" }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "precipitation" },
+            "properties": [
+              { "id": "custom.axisPlacement", "value": "right" },
+              { "id": "custom.axisLabel", "value": "Precipitación (mm)" }
             ]
           }
         ]
       },
       "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "none"
+        "legend": { "calcs": [], "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "multi", "sort": "none" }
+      }
+    },
+    {
+      "id": 6,
+      "title": "Estaciones más usadas (Top 10)",
+      "type": "table",
+      "datasource": "CrateDB",
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 27 },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT start_station_id as estacion, COUNT(*) as viajes, ROUND(AVG(distance_meters) / 1000.0) as km_medio FROM trips WHERE $__timeFilter(started_at) GROUP BY start_station_id ORDER BY viajes DESC LIMIT 10"
         }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "viajes" },
+            "properties": [{ "id": "custom.width", "value": 80 }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "km_medio" },
+            "properties": [{ "id": "custom.width", "value": 100 }]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "sortBy": [{ "displayName": "viajes", "desc": true }]
+      }
+    },
+    {
+      "id": 7,
+      "title": "Correlación Pearson: clima vs demanda",
+      "type": "stat",
+      "datasource": "CrateDB",
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 27 },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "WITH joined AS (SELECT w.wind_speed, w.precipitation, t.viajes FROM etweatherobserved w JOIN (SELECT DATE_TRUNC('hour', started_at) as hora, COUNT(*) as viajes FROM trips GROUP BY hora) t ON DATE_TRUNC('hour', w.time) = t.hora WHERE w.wind_speed IS NOT NULL AND w.precipitation IS NOT NULL), stats AS (SELECT COUNT(*) as n, SUM(wind_speed * viajes) as sum_xy_w, SUM(wind_speed) as sum_x_w, SUM(viajes) as sum_y, SUM(wind_speed * wind_speed) as sum_x2_w, SUM(viajes * viajes) as sum_y2, SUM(precipitation * viajes) as sum_xy_r, SUM(precipitation) as sum_x_r, SUM(precipitation * precipitation) as sum_x2_r FROM joined) SELECT ROUND(((n * sum_xy_w - sum_x_w * sum_y) / NULLIF(SQRT((n * sum_x2_w - sum_x_w * sum_x_w) * (n * sum_y2 - sum_y * sum_y)), 0)) * 1000) / 1000.0 as r_viento_viajes, ROUND(((n * sum_xy_r - sum_x_r * sum_y) / NULLIF(SQRT((n * sum_x2_r - sum_x_r * sum_x_r) * (n * sum_y2 - sum_y * sum_y)), 0)) * 1000) / 1000.0 as r_lluvia_viajes FROM stats"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 3,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "blue", "value": null },
+              { "color": "green", "value": 0.3 },
+              { "color": "red", "value": -0.3 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
       }
     }
   ]

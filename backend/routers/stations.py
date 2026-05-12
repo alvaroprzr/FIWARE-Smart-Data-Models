@@ -19,32 +19,32 @@ router = APIRouter()
 
 @router.get("")
 async def list_stations(city: str = Query(default="acoruna")) -> dict[str, Any]:
-    """Return list of stations by reading per-station `station_information` entities.
+    """Return list of stations from the single station_information feed entity.
 
-    Each station_information entity contains station metadata as direct NGSI-LD properties.
+    Per the GBFS data model, all stations live inside data.stations[] of one
+    feed entity (urn:ngsi-ld:station_information:{city}:bicicoruna).
     """
     client = OrionClient()
     try:
         entities = await client.get_entities("station_information", city)
-    except Exception as exc:  # pragma: no cover - scaffold fallback
+    except Exception as exc:
         raise HTTPException(status_code=503, detail="Orion-LD is not available.") from exc
 
     items: list[dict[str, Any]] = []
-    if entities:
-        for ent in entities:
-            station_id = client.unwrap(ent.get("station_id")) or client.unwrap(ent.get("https://smartdatamodels.org/dataModel.GBFS/station_id")) or ent.get("id", "").split(":")[-1]
-            name = client.unwrap(ent.get("name")) or client.unwrap(ent.get("https://uri.etsi.org/ngsi-ld/name")) or f"Estación {station_id}"
-            capacity = client.unwrap(ent.get("capacity")) or client.unwrap(ent.get("https://smart-data-models.github.io/data-models/terms.jsonld#/definitions/capacity")) or 20
-            location = ent.get("location", {})
-            loc_value = location.get("value", {}) if isinstance(location, dict) else {}
-            coords = loc_value.get("coordinates", [None, None]) if isinstance(loc_value, dict) else [None, None]
-            lon = coords[0] if len(coords) > 0 else None
-            lat = coords[1] if len(coords) > 1 else None
-            if lat is None:
-                lat = client.unwrap(ent.get("lat")) or client.unwrap(ent.get("https://smartdatamodels.org/dataModel.GBFS/lat"))
-            if lon is None:
-                lon = client.unwrap(ent.get("lon")) or client.unwrap(ent.get("https://smartdatamodels.org/dataModel.GBFS/lon"))
-            items.append({"station_id": station_id, "lat": lat, "lon": lon, "name": name, "capacity": capacity})
+    for ent in entities:
+        data_attr = client.unwrap(ent.get("data"))
+        if not isinstance(data_attr, dict):
+            continue
+        for st in data_attr.get("stations", []):
+            if not isinstance(st, dict):
+                continue
+            items.append({
+                "station_id": st.get("station_id"),
+                "lat": st.get("lat"),
+                "lon": st.get("lon"),
+                "name": st.get("name"),
+                "capacity": st.get("capacity", 20),
+            })
 
     return {"city": city, "items": items}
 
@@ -100,25 +100,11 @@ async def get_station_forecast(station_id: str, city: str = Query(default="acoru
     """
     orion = OrionClient()
 
-    # Validate station exists (best effort) — try per-station entity first, then feed
-    status_found = False
+    # Validate station exists via its station_status entity (per-station)
     try:
         status_id = f"urn:ngsi-ld:station_status:{city}:{station_id}"
         await orion.get_entity(status_id)
-        status_found = True
     except Exception:
-        pass
-
-    if not status_found:
-        # Try to find station via per-station station_information entity
-        try:
-            info_id = f"urn:ngsi-ld:station_information:{city}:{station_id}"
-            await orion.get_entity(info_id)
-            status_found = True
-        except Exception:
-            pass
-
-    if not status_found:
         raise HTTPException(
             status_code=404,
             detail=f"Station {station_id} not found or Orion-LD unavailable.",

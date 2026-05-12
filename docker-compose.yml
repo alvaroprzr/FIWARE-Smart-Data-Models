@@ -88,7 +88,7 @@ services:
       - IOTA_CB_NGSI_VERSION=ld
       - IOTA_AMQP_DISABLED=true   # Disable AMQP support to avoid unnecessary dependencies
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:4041/iot/about || exit 1"]
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:4041/iot/about',(r)=>{process.exit(r.statusCode===200?0:1)}).on('error',()=>process.exit(1))"]
       interval: 20s
       timeout: 5s
       retries: 10
@@ -191,6 +191,32 @@ services:
       - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources
       - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards
     restart: unless-stopped
+
+  setup:
+    image: python:3.11-slim
+    container_name: setup
+    depends_on:
+      orion-ld:
+        condition: service_healthy
+      iot-agent-mqtt:
+        condition: service_healthy
+      cratedb:
+        condition: service_healthy
+    networks:
+      - fiware_net
+    environment:
+      - ORION_URL=http://orion-ld:1026
+      - IOTAGENT_URL=http://iot-agent-mqtt:4041
+      - SERVICE=smartmobilityhub
+      - SERVICEPATH=/acoruna
+      - CRATEDB_HOST=cratedb
+      - CRATEDB_PORT=5432
+    volumes:
+      - ./:/app:ro
+    working_dir: /app
+    command: >
+      bash -c "apt-get update -qq && apt-get install -y --no-install-recommends curl > /dev/null && pip install --quiet requests psycopg2-binary && bash setup.sh"
+    restart: "no"
 
   frontend:
     image: nginx:stable-alpine

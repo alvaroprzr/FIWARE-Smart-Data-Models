@@ -3,15 +3,19 @@
 This lightweight router stores user favorites and receives Orion notifications.
 Favorites are persisted to `data/favorites.json` in a simple format.
 Orion should be configured to notify POST /api/alerts/notify when station_status changes.
+Alert delivery uses Server-Sent Events (SSE): clients connect to GET /api/alerts/stream
+and receive real-time push events when a favorited station becomes available (0 → ≥1 bikes).
 """
 
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 DATA_DIR = Path(__file__).resolve().parents[2] / "data"
@@ -24,6 +28,12 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 # Simple in-memory cache loaded from disk
 _favorites_cache: dict[str, set[str]] = {}
+
+# SSE subscriber queues: client_id -> asyncio.Queue of event dicts
+_sse_subscribers: dict[str, list[asyncio.Queue]] = {}
+
+# Track last known bike count per station to detect 0 -> ≥1 transitions
+_last_bike_count: dict[str, int] = {}
 
 
 def _load_favorites() -> None:
@@ -93,6 +103,45 @@ async def remove_favorite(req: FavoriteDeleteRequest) -> dict[str, Any]:
     return {"status": "ok", "client_id": client, "station_id": sid}
 
 
+@router.get("/stream")
+async def alert_stream(client_id: str, request: Request) -> StreamingResponse:
+    """Server-Sent Events endpoint for real-time alert delivery.
+
+    Clients connect here and receive push notifications when a favorited station
+    transitions from 0 to ≥1 available bikes.
+    """
+    queue: asyncio.Queue = asyncio.Queue()
+    if client_id not in _sse_subscribers:
+        _sse_subscribers[client_id] = []
+    _sse_subscribers[client_id].append(queue)
+
+    async def event_generator():
+        try:
+            yield "data: {\"type\": \"connected\"}\n\n"
+            while True:
+                if await request.is_disconnected():
+                    break
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=25.0)
+                    yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+                except asyncio.TimeoutError:
+                    yield ": keepalive\n\n"
+        finally:
+            if client_id in _sse_subscribers and queue in _sse_subscribers[client_id]:
+                _sse_subscribers[client_id].remove(queue)
+                if not _sse_subscribers[client_id]:
+                    _sse_subscribers.pop(client_id, None)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
 @router.post("/notify")
 async def orion_notify(request: Request) -> dict[str, Any]:
     """Endpoint to receive Orion notifications (to be used by subscriptions).
@@ -135,6 +184,29 @@ async def orion_notify(request: Request) -> dict[str, Any]:
         if not station_id:
             continue
 
+        # Extract current bike count to detect 0 -> ≥1 transition
+        num_bikes = None
+        raw_bikes = ent.get("num_bikes_available")
+        if isinstance(raw_bikes, dict):
+            num_bikes = raw_bikes.get("value")
+        elif isinstance(raw_bikes, (int, float)):
+            num_bikes = raw_bikes
+        try:
+            num_bikes = int(num_bikes) if num_bikes is not None else None
+        except (TypeError, ValueError):
+            num_bikes = None
+
+        prev_count = _last_bike_count.get(station_id)
+        if num_bikes is not None:
+            _last_bike_count[station_id] = num_bikes
+
+        availability_restored = (
+            num_bikes is not None
+            and num_bikes >= 1
+            and prev_count is not None
+            and prev_count == 0
+        )
+
         # Find clients who favorited this station
         targets = [c for c, sset in _favorites_cache.items() if station_id in sset]
         if targets:
@@ -146,5 +218,19 @@ async def orion_notify(request: Request) -> dict[str, Any]:
             except Exception:
                 pass
             alerts.append(line)
+
+            # Push SSE event to connected clients when availability is restored
+            if availability_restored:
+                event = {
+                    "type": "availability_restored",
+                    "station_id": station_id,
+                    "num_bikes_available": num_bikes,
+                }
+                for client_id in targets:
+                    for q in list(_sse_subscribers.get(client_id, [])):
+                        try:
+                            q.put_nowait(event)
+                        except asyncio.QueueFull:
+                            pass
 
     return {"received": len(entries), "alerts": alerts}

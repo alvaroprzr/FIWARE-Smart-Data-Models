@@ -149,8 +149,7 @@ Rol:
 2. **`js/map.js`** (Leaflet Map & Stations)
    - Inicialización de mapa Leaflet con tiles OpenStreetMap.
    - Carga de estaciones (`loadStations(city)`) desde `/api/stations?city={city}`.
-   - Marcadores interactivos con popups mostrando bicis/anclajes disponibles.
-   - Heatmap de densidad de viajes (`loadHeatmap()`) desde `/api/weather/trips/heatmap`.
+   - Marcadores interactivos con popups mostrando bicis/plazas libres disponibles, codificados por color (verde >5, amarillo 1–5, rojo 0).
    - Predicciones a 30/60 min (`fetchForecast(stationId)`) desde `/api/stations/{id}/forecast`.
    - Sidebar dinámico con detalles de estación seleccionada.
    - Refresh automático de statuses cada 30s.
@@ -445,7 +444,7 @@ services:
       - IOTA_CB_NGSI_VERSION=ld
       - IOTA_AMQP_DISABLED=true
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:4041/iot/about || exit 1"]
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:4041/iot/about',(r)=>{process.exit(r.statusCode===200?0:1)}).on('error',()=>process.exit(1))"]
       interval: 20s
       timeout: 5s
       retries: 10
@@ -577,7 +576,7 @@ datasources:
     type: postgres
     access: proxy
     url: cratedb:5432
-    database: doc
+    database: crate
     user: crate
     isDefault: true
     jsonData:

@@ -7,7 +7,6 @@ import {
 
 let map = null;
 let markers = new Map();
-let popupListenerAttached = false;
 
 /**
  * Initialize the Leaflet map.
@@ -55,16 +54,15 @@ function updateMarkers() {
 
     let marker = markers.get(id);
     const popupHtml = `
-      <div class="min-w-[220px] space-y-3 text-slate-900">
+      <div class="min-w-[200px] space-y-2 text-slate-900">
         <div>
           <div class="text-sm font-semibold text-slate-700">${escapeHtml(getStationName(station))}</div>
           <div class="font-mono text-xs text-slate-500">${escapeHtml(id)}</div>
         </div>
         <div class="grid grid-cols-2 gap-2 text-sm">
           <div class="rounded-xl bg-slate-100 px-3 py-2"><span class="block text-slate-500">Bicis</span><span class="font-bold text-slate-900">${bikes}</span></div>
-          <div class="rounded-xl bg-slate-100 px-3 py-2"><span class="block text-slate-500">Docks</span><span class="font-bold text-slate-900">${docks}</span></div>
+          <div class="rounded-xl bg-slate-100 px-3 py-2"><span class="block text-slate-500">Plazas libres</span><span class="font-bold text-slate-900">${docks}</span></div>
         </div>
-        <button class="js-forecast-btn w-full rounded-xl bg-slate-900 px-3 py-2 text-sm font-semibold text-white transition hover:bg-slate-700" data-station-id="${escapeHtml(id)}">Ver predicción</button>
       </div>
     `;
 
@@ -100,21 +98,6 @@ function updateMarkers() {
     }
   }
 
-  // Attach popup listener for forecast button
-  if (!popupListenerAttached) {
-    popupListenerAttached = true;
-    map.on('popupopen', (event) => {
-      const button = event.popup.getElement()?.querySelector('.js-forecast-btn');
-      if (button) {
-        button.addEventListener('click', () => {
-          const stationId = button.getAttribute('data-station-id');
-          if (stationId) {
-            selectStation(stationId, { openPopup: false, panTo: true });
-          }
-        }, { once: true });
-      }
-    });
-  }
 }
 
 /**
@@ -176,6 +159,16 @@ function updateSidebar(station) {
 
   if (forecast30BarEl) forecast30BarEl.style.width = `${Math.max(4, Math.min(100, (t30.value / 25) * 100))}%`;
   if (forecast60BarEl) forecast60BarEl.style.width = `${Math.max(4, Math.min(100, (t60.value / 25) * 100))}%`;
+
+  const favBtn = document.getElementById('favorite-btn');
+  if (favBtn) {
+    const isFav = id != null && appState.favorites instanceof Set && appState.favorites.has(id);
+    favBtn.textContent = isFav ? '★' : '☆';
+    favBtn.className = isFav
+      ? 'rounded-md border border-amber-400/40 bg-amber-400/15 px-2 py-1 text-sm text-amber-300'
+      : 'rounded-md border border-white/10 bg-white/5 px-2 py-1 text-sm text-slate-400';
+    favBtn.title = isFav ? 'Quitar de favoritos' : 'Añadir a favoritos';
+  }
 }
 
 /**

@@ -238,12 +238,9 @@
             <span class="text-sm text-slate-300">Ciudad</span>
             <select id="city-select" class="min-w-0 appearance-none rounded-xl border border-white/10 bg-slate-900/80 px-3 py-2 text-sm text-white outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-400/20"></select>
           </label>
-          <div id="connection-pill" class="flex items-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-sm font-medium text-emerald-300">
-            <span id="connection-dot" class="h-2.5 w-2.5 rounded-full bg-emerald-400"></span>
-            <span id="connection-label">Conectado</span>
-          </div>
         </div>
       </div>
+      <div id="alert-badge" class="hidden fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-2xl border border-amber-400/30 bg-amber-400/15 px-5 py-3 text-sm font-medium text-amber-300 shadow-lg backdrop-blur-xl transition-all"></div>
     </header>
 
     <main class="mx-auto flex max-w-[1600px] gap-4 px-4 py-4 desktop-shell md:px-6 md:pr-[370px]">
@@ -268,7 +265,7 @@
               <p class="panel-title">Selección actual</p>
               <div class="flex items-center gap-2">
                 <h3 id="station-name" class="mt-1 text-2xl font-bold text-white">Cargando estaciones...</h3>
-                <button id="favorite-btn" title="Marcar como favorito" class="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-xs text-slate-200">⭐</button>
+                <button id="favorite-btn" title="Añadir a favoritos" class="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-sm text-slate-400">☆</button>
               </div>
             </div>
 
@@ -377,7 +374,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
 
   <script type="module">
-    import { appState, CITY_CONFIG, cityLabel, escapeHtml, setConnection, requestJSON } from './js/utils.js';
+    import { appState, API_BASE, CITY_CONFIG, cityLabel, escapeHtml, setConnection, requestJSON } from './js/utils.js';
     import { initMap, updateCity, refreshData } from './js/map.js';
     import { initChat } from './js/chat.js';
     import { initCharts, updateChartsData } from './js/charts.js';
@@ -420,6 +417,19 @@
       try {
         const payload = await requestJSON(`/api/alerts/favorites?client_id=${encodeURIComponent(clientId)}`);
         const items = Array.isArray(payload?.favorites) ? payload.favorites : [];
+        appState.favorites = new Set(items);
+        // Refresh star button for currently selected station
+        if (appState.selectedStationId) {
+          const isFav = appState.favorites.has(appState.selectedStationId);
+          const favBtn = document.getElementById('favorite-btn');
+          if (favBtn) {
+            favBtn.textContent = isFav ? '★' : '☆';
+            favBtn.className = isFav
+              ? 'rounded-md border border-amber-400/40 bg-amber-400/15 px-2 py-1 text-sm text-amber-300'
+              : 'rounded-md border border-white/10 bg-white/5 px-2 py-1 text-sm text-slate-400';
+            favBtn.title = isFav ? 'Quitar de favoritos' : 'Añadir a favoritos';
+          }
+        }
         if (!items.length) {
           list.innerHTML = '<li class="text-xs text-slate-500">Sin estaciones favoritas</li>';
           return;
@@ -585,26 +595,38 @@
         });
       }
 
-      // Favorite button: store favorite for client in backend
+      // Favorite button: toggle add/remove for the selected station
       const favBtn = document.getElementById('favorite-btn');
       if (favBtn) {
         favBtn.addEventListener('click', async () => {
           const clientId = getClientId();
           const stationId = appState.selectedStationId;
-          if (!stationId) {
-            setConnection(false, 'Selecciona una estación primero');
-            return;
-          }
+          if (!stationId) return;
+          const isFav = appState.favorites.has(stationId);
           try {
-            await requestJSON('/api/alerts/favorite', {
-              method: 'POST',
-              body: JSON.stringify({ client_id: clientId, station_id: stationId }),
-            });
+            if (isFav) {
+              await requestJSON('/api/alerts/favorite', {
+                method: 'DELETE',
+                body: JSON.stringify({ client_id: clientId, station_id: stationId }),
+              });
+              appState.favorites.delete(stationId);
+            } else {
+              await requestJSON('/api/alerts/favorite', {
+                method: 'POST',
+                body: JSON.stringify({ client_id: clientId, station_id: stationId }),
+              });
+              appState.favorites.add(stationId);
+            }
+            // Update button appearance immediately
+            const nowFav = appState.favorites.has(stationId);
+            favBtn.textContent = nowFav ? '★' : '☆';
+            favBtn.className = nowFav
+              ? 'rounded-md border border-amber-400/40 bg-amber-400/15 px-2 py-1 text-sm text-amber-300'
+              : 'rounded-md border border-white/10 bg-white/5 px-2 py-1 text-sm text-slate-400';
+            favBtn.title = nowFav ? 'Quitar de favoritos' : 'Añadir a favoritos';
             await loadFavorites();
-            setConnection(true, 'Favorito guardado');
           } catch (err) {
-            console.warn('Favorite save failed', err);
-            setConnection(false, 'No se pudo guardar favorito');
+            console.warn('Favorite toggle failed', err);
           }
         });
       }
@@ -615,6 +637,28 @@
           loadFavorites();
         });
       }
+    }
+
+    function startAlertStream(clientId) {
+      if (!window.EventSource) return;
+      const url = `${API_BASE}/api/alerts/stream?client_id=${encodeURIComponent(clientId)}`;
+      const es = new EventSource(url);
+      es.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'availability_restored' && data.station_id) {
+            const badge = document.getElementById('alert-badge');
+            if (badge) {
+              badge.textContent = `🔔 Bici disponible en ${data.station_id}`;
+              badge.classList.remove('hidden');
+              setTimeout(() => badge.classList.add('hidden'), 8000);
+            }
+          }
+        } catch (_) {}
+      };
+      es.onerror = () => {
+        // SSE will auto-reconnect; no action needed
+      };
     }
 
     async function bootstrap() {
@@ -629,6 +673,7 @@
 
       await loadCity(appState.city);
       await loadFavorites();
+      startAlertStream(getClientId());
 
       // Refresh station data every 30 seconds
       setInterval(() => {

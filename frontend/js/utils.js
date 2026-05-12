@@ -8,6 +8,8 @@ export const API_BASE = window.__SMART_MOBILITY_API_BASE__ || (
 
 export const CITY_CONFIG = {
   acoruna: { label: 'A Coruña', center: [43.366, -8.412], zoom: 14 },
+  vigo: { label: 'Vigo', center: [42.231, -8.712], zoom: 14 },
+  santiago: { label: 'Santiago de Compostela', center: [42.880, -8.545], zoom: 14 },
 };
 
 // Shared application state
@@ -18,6 +20,7 @@ export const appState = {
   selectedStationId: null,
   statuses: new Map(),
   forecasts: new Map(),
+  favorites: new Set(),
   heatmap: [],
   heatVisible: true,
   mapMode: 'map',
