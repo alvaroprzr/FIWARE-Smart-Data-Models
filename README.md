@@ -208,7 +208,7 @@ curl -X POST http://localhost:4041/iot/services \
         "apikey": "bicicoruna",
         "cbroker": "http://orion-ld:1026",
         "entity_type": "station_status",
-        "resource": ""
+        "resource": "/iot/json"
       }
     ]
   }'

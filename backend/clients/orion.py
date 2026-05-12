@@ -15,9 +15,9 @@ logger = logging.getLogger(__name__)
 
 # Context URIs for different entity type families
 # These MUST match the @context used when creating the entities (see seed_current_data.py)
-# seed_current_data.py uses [smartdatamodels.org/context.jsonld, dataModel.GBFS context.jsonld]
-# For Link headers (single URL), we use smartdatamodels.org as it is the umbrella context
-GBFS_CONTEXT = "https://smartdatamodels.org/context.jsonld"
+# Uses the GBFS-specific context to ensure all GBFS short names resolve correctly,
+# consistent with IOTA_JSON_LD_CONTEXT in docker-compose.yml.
+GBFS_CONTEXT = "https://raw.githubusercontent.com/smart-data-models/dataModel.GBFS/master/context.jsonld"
 WEATHER_CONTEXT = "https://raw.githubusercontent.com/smart-data-models/dataModel.Weather/master/context.jsonld"
 DEVICE_CONTEXT = "https://raw.githubusercontent.com/smart-data-models/dataModel.Device/master/context.jsonld"
 OSLO_CONTEXT = "https://raw.githubusercontent.com/smart-data-models/dataModel.OSLO/master/context.jsonld"
