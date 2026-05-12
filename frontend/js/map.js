@@ -54,14 +54,20 @@ function updateMarkers() {
 
     let marker = markers.get(id);
     const popupHtml = `
-      <div class="min-w-[200px] space-y-2 text-slate-900">
+      <div class="p-3 space-y-3" style="min-width:200px">
         <div>
-          <div class="text-sm font-semibold text-slate-700">${escapeHtml(getStationName(station))}</div>
-          <div class="font-mono text-xs text-slate-500">${escapeHtml(id)}</div>
+          <div class="text-sm font-semibold text-white leading-tight">${escapeHtml(getStationName(station))}</div>
+          <div class="font-mono text-[11px] text-slate-400 mt-0.5">${escapeHtml(id)}</div>
         </div>
-        <div class="grid grid-cols-2 gap-2 text-sm">
-          <div class="rounded-xl bg-slate-100 px-3 py-2"><span class="block text-slate-500">Bicis</span><span class="font-bold text-slate-900">${bikes}</span></div>
-          <div class="rounded-xl bg-slate-100 px-3 py-2"><span class="block text-slate-500">Plazas libres</span><span class="font-bold text-slate-900">${docks}</span></div>
+        <div class="grid grid-cols-2 gap-2">
+          <div class="rounded-xl border border-emerald-400/15 bg-emerald-400/8 px-3 py-2">
+            <span class="block panel-title">Bicis</span>
+            <span class="mt-1 block text-2xl font-bold" style="color:${color}">${bikes}</span>
+          </div>
+          <div class="rounded-xl border border-sky-400/15 bg-sky-400/8 px-3 py-2">
+            <span class="block panel-title">Plazas</span>
+            <span class="mt-1 block text-2xl font-bold text-sky-300">${docks}</span>
+          </div>
         </div>
       </div>
     `;
@@ -124,7 +130,6 @@ function updateSidebar(station) {
   const status = id ? (appState.statuses.get(id) || {}) : {};
   const bikes = numberValue(status.num_bikes_available, 0);
   const docks = numberValue(status.num_docks_available, 0);
-  const lastReported = status.last_reported;
   const forecast = id ? appState.forecasts.get(id) : null;
 
   const t30 = normalizeForecast(forecast?.t30, bikes);
@@ -133,7 +138,6 @@ function updateSidebar(station) {
   const stationNameEl = document.getElementById('station-name');
   const stationBikesEl = document.getElementById('station-bikes');
   const stationDocksEl = document.getElementById('station-docks');
-  const stationUpdatedEl = document.getElementById('station-updated');
   const forecast30PillEl = document.getElementById('forecast-30-pill');
   const forecast60PillEl = document.getElementById('forecast-60-pill');
   const forecast30BarEl = document.getElementById('forecast-30-bar');
@@ -150,7 +154,6 @@ function updateSidebar(station) {
     stationBikesEl.className = `mt-1 text-4xl font-bold ${station ? (bikes > 5 ? 'availability-good' : bikes > 0 ? 'availability-warn' : 'availability-bad') : ''}`;
   }
   if (stationDocksEl) stationDocksEl.textContent = station ? String(docks) : '--';
-  if (stationUpdatedEl) stationUpdatedEl.textContent = station ? relativeTime(lastReported) : '--';
 
   if (forecast30PillEl) forecast30PillEl.textContent = `${t30.value.toFixed(1)} bicis`;
   if (forecast60PillEl) forecast60PillEl.textContent = `${t60.value.toFixed(1)} bicis`;

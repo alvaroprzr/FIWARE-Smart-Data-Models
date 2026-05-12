@@ -108,6 +108,26 @@
       font-family: 'Space Grotesk', sans-serif;
     }
 
+    /* Popup dark theme — matches page glass style */
+    .leaflet-popup-content-wrapper {
+      background: rgba(9, 18, 31, 0.96);
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      border-radius: 1.25rem;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.05);
+      backdrop-filter: blur(18px);
+      padding: 0;
+      color: var(--text);
+    }
+    .leaflet-popup-content { margin: 0; line-height: 1.5; }
+    .leaflet-popup-tip { background: rgba(9, 18, 31, 0.96); }
+    .leaflet-popup-close-button {
+      color: rgba(148, 163, 184, 0.5) !important;
+      font-size: 1.1rem !important;
+      top: 8px !important;
+      right: 10px !important;
+    }
+    .leaflet-popup-close-button:hover { color: var(--text) !important; background: transparent !important; }
+
     .map-layer {
       position: absolute;
       inset: 0;
@@ -309,11 +329,6 @@
               <p class="panel-title">Plazas libres</p>
               <div id="station-docks" class="mt-1 text-4xl font-bold">--</div>
             </div>
-          </div>
-
-          <div class="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-            <span class="text-sm text-slate-300">Última actualización</span>
-            <span id="station-updated" class="font-mono text-sm text-white">--</span>
           </div>
 
           <div class="mt-4">

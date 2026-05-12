@@ -156,7 +156,7 @@ async def orion_notify(request: Request) -> dict[str, Any]:
         raise HTTPException(status_code=400, detail="Invalid JSON payload")
 
     # Orion notify structure varies; try to extract entity id and changed attributes
-    notified = payload.get("data") or payload.get("data") or payload
+    notified = payload.get("data") or payload
     # payload may be a dict with 'data': [ {entity} ]
     entries = []
     if isinstance(notified, dict) and "data" in notified and isinstance(notified["data"], list):

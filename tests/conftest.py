@@ -114,8 +114,9 @@ def mock_llm():
     
     async def mock_chat(messages: list, tools: list | None = None, **kwargs):
         return {
-            "response": "Hay 8 bicis disponibles en María Pita.",
-            "tool_calls": None,
+            "choices": [
+                {"message": {"content": "Hay 8 bicis disponibles en María Pita.", "tool_calls": None}}
+            ]
         }
     
     mock.chat = mock_chat
@@ -132,7 +133,7 @@ def mock_cratedb():
     """
     mock = MagicMock()
     
-    def mock_get_trips_heatmap(city: str):
+    def mock_get_trips_heatmap():
         return []
     
     mock.get_trips_heatmap = mock_get_trips_heatmap
