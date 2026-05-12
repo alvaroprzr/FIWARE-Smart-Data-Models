@@ -30,9 +30,9 @@ Los datos de prueba utilizados son **sintéticos pero geográficamente coherente
 
 1. **NGSI-LD nativo:** Usa el estándar FIWARE de contexto inteligente como contrato de datos. Todas las entidades (estaciones, bicicletas, observaciones meteorológicas) se modelan como objetos JSON-LD con relaciones explícitas (`Relationship`), permitiendo consultas estructuradas y evolución sin fragmentación.
 
-2. **Interoperabilidad mediante GBFS/FIWARE:** La especificación GBFS (General Bikeshare Feed Specification) se materializa como entidades NGSI-LD (`GBFSStation`, `GBFSStationStatus`, `GBFSFreeBikeStatus`), transformando un feed orientado a consumo en datos semánticos operables e históricos.
+2. **Interoperabilidad mediante GBFS/FIWARE:** La especificación GBFS (General Bikeshare Feed Specification) se materializa como entidades NGSI-LD (`station_information`, `station_status`, `free_bike_status`), transformando un feed orientado a consumo en datos semánticos operables e históricos.
 
-3. **Movilidad intermodal (OSLO):** Integra el perfil OSLO (estándar europeo) para modelar viajes (`Trip`) y estaciones multimodales (`MobilityStation`), facilitando futuros análisis de cambio modal.
+3. **Movilidad intermodal (OSLO):** Integra el perfil OSLO (estándar europeo) para modelar viajes (`Trip`) y estaciones multimodales (`BicycleParkingStation`), facilitando futuros análisis de cambio modal.
 
 4. **Machine Learning y predicción local:** Acumula series temporales en QuantumLeap/CrateDB, entrena modelos de demanda incorporando variables meteorológicas (viento, precipitación), y sirve predicciones a 30–60 minutos sin dependencia de APIs externas.
 
@@ -51,21 +51,41 @@ La plataforma agrupa 15 funcionalidades en tres perfiles:
 - Detalle de estación: bicis disponibles, anclajes libres, última actualización (F-03)
 - Predicción de disponibilidad a 30 y 60 minutos por estación (F-04)
 - Asistente IA conversacional con acceso en tiempo real a Orion (F-05)
-- Panel de impacto ambiental: CO₂ ahorrado, km totales, viajes equivalentes (F-08)
-- Interfaz responsiva para dispositivos móviles desde 360px (F-09)
+- Panel de impacto ambiental: CO₂ ahorrado, km totales, viajes equivalentes (F-12)
+- Interfaz responsiva para dispositivos móviles desde 360px (F-13)
 
 **Para el Analista / Operador:**
-- Dashboard histórico parametrizado por ciudad y estación en Grafana local (F-10)
-- Heatmap de demanda por zonas de la ciudad (F-11)
-- Predicción de redistribución: estaciones en riesgo de vaciarse o llenarse (F-12)
-- Correlación clima–uso: impacto de viento y lluvia en demanda (F-13)
-F-06, F-07 y F-14 quedan como trabajo futuro: planificador topográfico, alertas push web e iFrame de Grafana.
+- Dashboard histórico parametrizado por ciudad y estación en Grafana local (F-08)
+- Heatmap de demanda por zonas de la ciudad (F-09)
+- Predicción de redistribución: estaciones en riesgo de vaciarse o llenarse (F-10)
+- Correlación clima–uso: impacto de viento y lluvia en demanda (F-11)
+
+F-06, F-07 y F-14 quedan como trabajo futuro: planificador topográfico, alertas push web e iFrame de Grafana embebido.
+
+### Funcionalidades detalladas (resumen del PRD)
+
+| Código | Funcionalidad | Perfil | Prioridad | Estado |
+|--------|--------------|--------|-----------|--------|
+| F-01 | Mapa interactivo multi-ciudad con disponibilidad en tiempo real | Ciudadano | Alta | ✅ |
+| F-02 | Selector de ciudad con cambio dinámico de contexto | Ciudadano | Alta | ✅ |
+| F-03 | Detalle de estación: bicis, anclajes libres, última actualización | Ciudadano | Alta | ✅ |
+| F-04 | Predicción de disponibilidad a 30 y 60 min por estación | Ciudadano | Alta | ✅ |
+| F-05 | Asistente IA conversacional con function calling contra Orion | Ciudadano | Alta | ✅ |
+| F-06 | Planificador de ruta con perfil topográfico (GeoPandas/OSM) | Ciudadano | Media | 🔜 |
+| F-07 | Alertas push de disponibilidad en estaciones favoritas | Ciudadano | Media | 🔜 |
+| F-08 | Dashboard histórico parametrizado por ciudad/estación en Grafana | Analista | Alta | ✅ |
+| F-09 | Heatmap de demanda por zonas de la ciudad | Analista | Alta | ✅ |
+| F-10 | Predicción de redistribución: estaciones en riesgo | Analista | Alta | ✅ |
+| F-11 | Correlación clima–uso: viento y precipitación vs demanda | Analista | Alta | ✅ |
+| F-12 | Panel de impacto ambiental: CO₂ ahorrado, km, viajes | Ciudadano/Analista | Media | ✅ |
+| F-13 | Interfaz web responsiva (desde 360 px) | Ciudadano | Alta | ✅ |
+| F-14 | Paneles Grafana embebidos vía iFrame en frontend | Ciudadano/Analista | Media | 🔜 |
 
 ---
 
 ## 4. Resumen Técnico
 
-**Mapa y Disponibilidad:** El mapa carga en <3 segundos desde Orion-LD, codificado por color (verde: >5 bicis, amarillo: 1–5, rojo: 0). El planificador de rutas integra GeoPandas/OSM para perfil de elevación. Predicciones de demanda (30–60 min) usando histórico + variables meteorológicas (viento, precipitación) con scikit-learn, MAE <2 bicicletas.
+**Mapa y Disponibilidad:** El mapa carga en <3 segundos desde Orion-LD, codificado por color (verde: >5 bicis, amarillo: 1–5, rojo: 0). Predicciones de demanda (30–60 min) usando histórico + variables meteorológicas (viento, precipitación) con scikit-learn RandomForest, MAE <2 bicicletas.
 
 **Dashboards y Analítica:** Grafana local (stack `smartmobilityhub`) conectada a CrateDB, parametrizada por `$city` y `$station`. Heatmap de demanda por zonas, correlación clima–uso (windSpeed, precipitation), panel sostenibilidad (CO₂ ahorrado 0.21 kg/km, km totales, viajes). Datos actualizados desde QuantumLeap/CrateDB mediante SQL.
 
@@ -121,25 +141,25 @@ flowchart LR
 
 ```mermaid
 graph TD
-  SI[GBFSStation / station_information]
-  SS[GBFSStationStatus / station_status]
-  FB[GBFSFreeBikeStatus / free_bike_status]
-  SYS[GBFSSystemInformation / system_information]
-  GEO[GBFSGeofencingZone / geofencing_zones]
-  MSP[MobilityStation / BicycleParkingStation]
-  TR[Trip / OSLO Trip]
-  DEV[Device]
-  WEA[WeatherObserved]
+  SI[station_information\ndataModel.GBFS]
+  SS[station_status\ndataModel.GBFS]
+  FB[free_bike_status\ndataModel.GBFS]
+  SYS[system_information\ndataModel.GBFS]
+  GEO[geofencing_zones\ndataModel.GBFS]
+  MSP[BicycleParkingStation\ndataModel.OSLO]
+  TR[Trip\nOSLO Trips AP]
+  DEV[Device\ndataModel.Device]
+  WEA[WeatherObserved\ndataModel.Weather]
 
-  SS -->|refStation hub relation| SI
-  FB -->|refStation hub relation| SI
-  MSP -->|refGBFSStation hub relation| SI
-  TR -->|refOrigin hub relation| SI
-  TR -->|refDestination hub relation| SI
-  TR -->|refVehicle hub relation| DEV
-  WEA -->|refDevice official| DEV
-  SI -->|refWeather hub relation| WEA
-  DEV -->|refStation hub relation| SI
+  SS -->|refStation| SI
+  FB -->|refStation| SI
+  MSP -->|refGBFSStation| SI
+  TR -->|refOrigin| MSP
+  TR -->|refDestination| MSP
+  TR -->|refVehicle| DEV
+  WEA -->|refDevice| DEV
+  SI -->|refWeather| WEA
+  DEV -->|refStation| SI
 ```
 
 ---
