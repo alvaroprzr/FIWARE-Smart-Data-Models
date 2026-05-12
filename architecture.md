@@ -32,12 +32,16 @@ Rol:
 - Adaptador de protocolo entre sensores MQTT y Orion-LD.
 - Traduce payloads JSON publicados en topics MQTT a actualizaciones de atributos NGSI-LD.
 
+Configuracion NGSI-LD critica:
+- `IOTA_CB_NGSI_VERSION=ld`: activa modo NGSI-LD nativo en el agente.
+- `IOTA_JSON_LD_CONTEXT=https://smartdatamodels.org/context.jsonld`: contexto JSON-LD que se incluye en cada PATCH a Orion-LD. **Obligatorio** para que los atributos MQTT se resuelvan a las URIs GBFS correctas (sin esto los atributos se crean bajo URIs genericas y no coinciden con los seeded).
+- `IOTA_FALLBACK_TENANT` y `IOTA_FALLBACK_PATH`: tenant/path por defecto cuando el mensaje MQTT no contiene informacion de servicio explícita.
+
 Mapeo MQTT -> NGSI-LD:
 - Topic de ingesta del dominio anclajes: `/bicicoruna/+/attrs`.
 - El `+` representa el identificador de estacion/sensor (por ejemplo `ACORUNA-001`).
-- Payload JSON esperado: `{ "num_bikes_available": 12, "ts": "2026-04-21T10:15:00Z" }`.
-- Mapeo principal:
-  - `num_bikes_available` (MQTT JSON) -> atributo `num_bikes_available` de la entidad `station_status` en Orion-LD.
+- Payload JSON esperado: `{ "num_bikes_available": 12, "num_docks_available": 8, "last_reported": 1715500000 }`.
+- Mapeo principal: `num_bikes_available`, `num_docks_available`, `last_reported` -> atributos NGSI-LD de la entidad `station_status` en Orion-LD.
 - Operacion resultante en Orion-LD: `PATCH /ngsi-ld/v1/entities/{urn_station_status}/attrs`.
 
 ### 1.3 QuantumLeap + CrateDB
@@ -183,6 +187,15 @@ Capacidades:
 Rol:
 - Almacen persistente interno de Orion-LD.
 - Guarda entidades y estructuras de contexto utilizadas por el broker.
+
+### 1.9 Servicio setup (provisioning automatico)
+
+Rol:
+- Contenedor efimero (`restart: no`) que ejecuta `setup.sh` una sola vez al arrancar el stack.
+- Espera a que Orion-LD, IoT Agent y CrateDB esten healthy antes de ejecutarse.
+- Se encarga de: registrar el service group del IoT Agent, provisionar los 15 devices MQTT, crear las 4 suscripciones Orion-LD (station_status → QL, WeatherObserved → QL, Trip → QL, station_status → backend), y cargar datos de prueba (seed_current_data.py + seed_historical_data.py).
+- Es idempotente: si ya existe cualquier recurso devuelve 409 y continua.
+- Las suscripciones adicionales para alertas del backend (station_status → fastapi:8000/api/alerts/notify) se crean en el startup de FastAPI.
 
 ---
 
@@ -346,8 +359,10 @@ flowchart LR
 | quantumleap | orchestracities/quantumleap:1.0.0 | 8668 | 8668 | http://localhost:8668 |
 | cratedb | crate:5.4.3 | 4200, 5432 | 4200, 5432 | http://localhost:4200 |
 | fastapi-backend | build ./backend/Dockerfile | 8000 | 8000 | http://localhost:8000 |
-| grafana | grafana/grafana:10.2.0 | 3000 | 3000 | http://localhost:3000 |
+| grafana | grafana/grafana:10.2.0 | 3000 | 3000 | http://localhost:8081/grafana/ (proxy via nginx) |
 | frontend | nginx:stable-alpine | 80 | 8081 | http://localhost:8081 |
+| setup | python:3.11-slim | — | — | Provisioning automático (restart: no) |
+| iot-simulator | python:3.11-slim | — | — | Simulador MQTT, publica cada 30s |
 
 ---
 
@@ -442,6 +457,9 @@ services:
       - IOTA_TIMESTAMP=true
       - IOTA_LOG_LEVEL=INFO
       - IOTA_CB_NGSI_VERSION=ld
+      - IOTA_JSON_LD_CONTEXT=https://smartdatamodels.org/context.jsonld
+      - IOTA_FALLBACK_TENANT=smartmobilityhub
+      - IOTA_FALLBACK_PATH=/acoruna
       - IOTA_AMQP_DISABLED=true
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:4041/iot/about',(r)=>{process.exit(r.statusCode===200?0:1)}).on('error',()=>process.exit(1))"]
@@ -534,8 +552,13 @@ services:
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin
-      - GF_SERVER_ROOT_URL=http://localhost:3000
+      - GF_SERVER_DOMAIN=localhost
+      - GF_SERVER_ROOT_URL=http://localhost:8081/grafana/
+      - GF_SERVER_SERVE_FROM_SUB_PATH=true
       - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SECURITY_ALLOW_EMBEDDING=true
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
     volumes:
       - grafana_data:/var/lib/grafana
       - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources
@@ -598,7 +621,7 @@ datasources:
       "apikey": "bicicoruna",
       "cbroker": "http://orion-ld:1026",
       "entity_type": "station_status",
-      "resource": "/bicicoruna"
+      "resource": ""
     }
   ]
 }
@@ -690,7 +713,8 @@ Topico operativo esperado por el IoT Agent:
   },
   "throttling": 1,
   "@context": [
-    "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context.jsonld"
+    "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context.jsonld",
+    "https://raw.githubusercontent.com/smart-data-models/dataModel.GBFS/master/context.jsonld"
   ]
 }
 ```

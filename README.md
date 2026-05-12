@@ -46,56 +46,38 @@ Server running at http://localhost:1234
 
 **Mantén esta terminal abierta durante todo el proceso de instalación y todos los futuros arranques.** El backend Docker necesita conectarse a este servidor para el asistente IA.
 
-### Paso 3: Crear entorno virtual y dependencias locales
-
-Crea un entorno virtual Python para los scripts de setup y datos de prueba:
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate  # En Windows: .venv\Scripts\activate
-
-# Instalar dependencias mínimas para scripts de setup
-pip install requests psycopg2-binary
-```
-
-⚠️ **Nota**: Este entorno local (`.venv`) **solo es necesario para la instalación inicial**. Se puede eliminar después si lo deseas. El backend en Docker tiene sus propias dependencias (ver `backend/requirements.txt`).
-
-### Paso 4: Levantar todos los servicios Docker
+### Paso 3: Levantar todos los servicios Docker
 
 ```bash
 docker compose up -d --build
 ```
 
-Este comando arranca en segundo plano todos los servicios: MongoDB, Orion-LD, Mosquitto, IoT Agent MQTT, CrateDB, QuantumLeap, FastAPI backend, Grafana y frontend Nginx.
+Este comando arranca en segundo plano **todos los servicios** e incluye el provisioning automático:
+- MongoDB, Orion-LD, Mosquitto, IoT Agent MQTT, CrateDB, QuantumLeap, FastAPI backend, Grafana, frontend Nginx
+- **Servicio `setup`**: se ejecuta automáticamente al final y hace el provisioning completo
+- **Servicio `iot-simulator`**: simula los sensores de las estaciones publicando via MQTT cada 30 segundos, actualizando disponibilidad de bicicletas en tiempo real
 
-### Paso 5: Esperar a healthchecks y provisioning
+No es necesario instalar Python localmente ni ejecutar `setup.sh` manualmente.
 
-Los servicios tardan **~60 segundos** en estar listos. Verifica el estado:
+### Paso 4: Esperar a healthchecks y provisioning
+
+Los servicios tardan **~2-3 minutos** en estar completamente listos (incluyendo provisioning). Verifica el estado:
 
 ```bash
 docker compose ps
 ```
 
-Espera a que todos muestren estado `Up` o `healthy` (indicado con una marca verde en Docker Desktop).
+Espera a que todos muestren estado `Up` o `healthy`. El servicio `setup` aparecerá como `Exited (0)` cuando haya terminado correctamente.
 
-### Paso 6: Ejecutar provisioning automático (setup)
+✅ **Qué hace el provisioning automático** (idempotente):
+1. Registra el service group del IoT Agent (apikey `bicicoruna`, MQTT, NGSI-LD)
+2. Crea 4 suscripciones: `station_status` → QuantumLeap, `WeatherObserved` → QuantumLeap, `Trip` → QuantumLeap, `station_status` → backend alertas
+3. Ejecuta `seed_current_data.py`: crea o actualiza las 15 estaciones GBFS y entidades OSLO en Orion-LD
+4. Ejecuta `seed_historical_data.py`: carga 90 días de histórico en CrateDB **solo si las tablas están vacías**
 
-Ahora configura automáticamente el IoT Agent, crea suscripciones y carga datos de prueba:
+**Duración total**: ~2-3 minutos (el seed histórico inserta ~130k filas).
 
-```bash
-chmod +x setup.sh
-./setup.sh
-```
-
-✅ **Qué hace este script** (es idempotente):
-1. Registra el service group del IoT Agent en Orion-LD (si ya existe, lo ignora con HTTP 409)
-2. Crea 3 suscripciones: `station_status` → QuantumLeap, `WeatherObserved` → QuantumLeap, `Trip` → QuantumLeap (si existen, las preserva)
-3. Ejecuta `seed_current_data.py`: crea o actualiza las 15 estaciones y datos actuales en Orion-LD (idempotente)
-4. Ejecuta `seed_historical_data.py`: carga 90 días de histórico en CrateDB **solo si las tablas están vacías** (para no duplicar al reiniciar)
-
-**Duración**: ~2-3 minutos (especialmente `seed_historical_data.py`, que inserta ~130k filas).
-
-### Paso 7: Entrenar modelo ML (dentro del contenedor)
+### Paso 5: Entrenar modelo ML (dentro del contenedor)
 
 Ahora entrena el modelo de predicción de demanda con los datos históricos:
 
@@ -111,7 +93,7 @@ Este comando:
 
 **Duración**: ~1-2 minutos.
 
-### Paso 8: Verificar instalación
+### Paso 6: Verificar instalación
 
 Comprueba que todo está en marcha:
 
@@ -131,7 +113,7 @@ open http://localhost:8081
 
 ✅ **Instalación completada.** Puedes acceder a:
 - **Frontend interactivo**: http://localhost:8081
-- **Grafana dashboards**: http://localhost:3000 (admin / admin)
+- **Grafana dashboards**: http://localhost:8081/grafana/ (acceso anónimo, sin contraseña)
 - **API Swagger UI**: http://localhost:8000/docs
 - **Orion-LD API**: http://localhost:1026/ngsi-ld/v1/entities
 - **CrateDB admin**: http://localhost:4200
@@ -203,15 +185,15 @@ Esto borra:
 - Dashboards y configuración de Grafana
 - Datos de MongoDB
 
-Para restaurar el estado, vuelve a ejecutar desde el Paso 6 de la instalación inicial (`./setup.sh`).
+Para restaurar el estado, vuelve a ejecutar desde el Paso 3 de la instalación inicial (`docker compose up -d --build`). El servicio `setup` se ejecutará automáticamente.
 
 ---
 
 ### 5. (OPCIONAL) Pasos manuales alternativos
 
-Si prefieres configurar manualmente sin el script `setup.sh`, sigue los pasos a continuación. **Esto reemplaza completamente el Paso 6** de la instalación inicial.
+Si el servicio `setup` de docker-compose falla o quieres configurar manualmente, sigue los pasos a continuación. Las suscripciones usan IDs explícitos (son idempotentes: si ya existen devuelven 409 y se ignoran).
 
-⚠️ **No ejecutes ambos**: si usas esta vía, sáltate `./setup.sh` para evitar suscripciones duplicadas.
+⚠️ **No es necesario normalmente**: `docker compose up -d` ya ejecuta el provisioning automático.
 
 ### Paso A: Registrar el service group del IoT Agent
 
@@ -226,7 +208,7 @@ curl -X POST http://localhost:4041/iot/services \
         "apikey": "bicicoruna",
         "cbroker": "http://orion-ld:1026",
         "entity_type": "station_status",
-        "resource": "/bicicoruna"
+        "resource": ""
       }
     ]
   }'
@@ -274,7 +256,8 @@ curl -X POST http://localhost:1026/ngsi-ld/v1/subscriptions \
     },
     "throttling": 1,
     "@context": [
-      "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context.jsonld"
+      "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context.jsonld",
+      "https://raw.githubusercontent.com/smart-data-models/dataModel.GBFS/master/context.jsonld"
     ]
   }'
 ```
@@ -364,7 +347,7 @@ Todos los endpoints están listos:
 
 ```
 Frontend:     http://localhost:8081
-Grafana:      http://localhost:3000
+Grafana:      http://localhost:8081/grafana/
 API Swagger:  http://localhost:8000/docs
 ```
 
@@ -375,7 +358,7 @@ API Swagger:  http://localhost:8000/docs
 | Servicio | URL | Credenciales | Propósito |
 |---|---|---|---|
 | **Frontend** | http://localhost:8081 | Sin autenticación | Interfaz ciudadana: mapa, predicciones, chat |
-| **Grafana** | http://localhost:3000 | admin / admin | Dashboards analíticos y operativos |
+| **Grafana** | http://localhost:8081/grafana/ | Sin autenticación (anónimo Admin) | Dashboards analíticos y operativos |
 | **API Swagger** | http://localhost:8000/docs | Sin autenticación | Documentación interactiva de endpoints REST |
 | **Orion-LD** | http://localhost:1026/ngsi-ld/v1/entities | Sin autenticación | Consultas NGSI-LD directas (avanzado) |
 | **CrateDB Admin** | http://localhost:4200 | Sin credenciales | Gestor de base de datos (avanzado) |
@@ -434,15 +417,17 @@ El frontend utiliza una **arquitectura modularizada con 5 módulos ES6 independi
 **Causa**: LM Studio no está corriendo o está en otro puerto.  
 **Solución**: Abre LM Studio, verifica que muestra "Server running at http://localhost:1234", y mantén la ventana abierta.
 
-### Problema: "No module named 'requests'" al ejecutar setup.sh
+### Problema: El servicio `setup` salió con error (Exited ≠ 0)
 
-**Causa**: El entorno virtual no fue activado o las dependencias no están instaladas.  
+**Causa**: Algún servicio dependiente (Orion, IoT Agent o CrateDB) no estaba listo a tiempo.  
 **Solución**:
 
 ```bash
-source .venv/bin/activate
-pip install requests psycopg2-binary
-./setup.sh
+# Ver logs del setup
+docker compose logs setup
+
+# Re-ejecutar solo el servicio setup
+docker compose run --rm setup bash -c "pip install --quiet requests psycopg2-binary && bash setup.sh"
 ```
 
 ### Problema: Servicios no healthy después de 2 minutos
@@ -467,7 +452,7 @@ docker compose up -d --build
 ```bash
 docker compose down -v
 docker compose up -d --build
-./setup.sh
+# El servicio setup corre automáticamente; espera a que salga con Exited (0)
 docker compose exec fastapi-backend python ml/train.py
 ```
 
@@ -545,8 +530,11 @@ El backend incluye una suite completa de tests con pytest-asyncio que valida tod
 Desde el directorio raíz del proyecto:
 
 ```bash
-# Instalar dependencias de testing (activar venv primero si no está activado)
-source .venv/bin/activate
+# Ejecutar dentro del contenedor (no requiere entorno local)
+docker compose exec fastapi-backend bash -c "cd /app && pip install pytest pytest-asyncio httpx && pytest ../tests -v"
+
+# O localmente con un entorno virtual:
+python3 -m venv .venv && source .venv/bin/activate
 cd backend && pip install -r requirements.txt
 
 # Ejecutar tests con verbose output
@@ -592,5 +580,5 @@ Consulta los siguientes documentos para entender la arquitectura, requisitos y m
 
 ---
 
-**Última actualización:** 2026-04-22  
+**Última actualización:** 2026-05-12  
 **Estado:** MVP (Minimum Viable Product) - Demostración funcional para Práctica 3

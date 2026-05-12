@@ -650,11 +650,11 @@ def build_trip_entities() -> List[Dict[str, Any]]:
                     "arrivalTime": prop(arr_iso),
                     "refOrigin": {
                         "type": "Relationship",
-                        "object": f"urn:ngsi-ld:station_information:acoruna:{origin_id}",
+                        "object": f"urn:ngsi-ld:BicycleParkingStation:acoruna:{origin_id}",
                     },
                     "refDestination": {
                         "type": "Relationship",
-                        "object": f"urn:ngsi-ld:station_information:acoruna:{dest_id}",
+                        "object": f"urn:ngsi-ld:BicycleParkingStation:acoruna:{dest_id}",
                     },
                     "refVehicle": {
                         "type": "Relationship",

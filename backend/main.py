@@ -65,7 +65,7 @@ async def ensure_orion_subscriptions() -> None:
             "watchedAttributes": ["num_bikes_available", "num_docks_available", "is_renting", "is_returning", "last_reported"],
             "notification": {"attributes": ["num_bikes_available", "num_docks_available", "is_renting", "is_returning", "last_reported", "refStation"], "endpoint": {"uri": ql_endpoint, "accept": "application/json"}},
             "throttling": 1,
-            "@context": ["https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context.jsonld"]
+            "@context": ["https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context.jsonld", "https://raw.githubusercontent.com/smart-data-models/dataModel.GBFS/master/context.jsonld"]
         },
         {
             "id": "urn:ngsi-ld:Subscription:weatherobserved_to_quantumleap",
@@ -96,7 +96,7 @@ async def ensure_orion_subscriptions() -> None:
             "watchedAttributes": ["num_bikes_available", "num_docks_available", "last_reported"],
             "notification": {"attributes": ["num_bikes_available", "num_docks_available", "last_reported", "refStation"], "endpoint": {"uri": backend_notify, "accept": "application/json"}},
             "throttling": 1,
-            "@context": ["https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context.jsonld"]
+            "@context": ["https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context.jsonld", "https://raw.githubusercontent.com/smart-data-models/dataModel.GBFS/master/context.jsonld"]
         }
     ]
 

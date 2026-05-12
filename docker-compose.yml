@@ -86,6 +86,9 @@ services:
       - IOTA_TIMESTAMP=true
       - IOTA_LOG_LEVEL=INFO
       - IOTA_CB_NGSI_VERSION=ld
+      - IOTA_JSON_LD_CONTEXT=https://raw.githubusercontent.com/smart-data-models/dataModel.GBFS/master/context.jsonld
+      - IOTA_FALLBACK_TENANT=smartmobilityhub
+      - IOTA_FALLBACK_PATH=/acoruna
       - IOTA_AMQP_DISABLED=true   # Disable AMQP support to avoid unnecessary dependencies
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:4041/iot/about',(r)=>{process.exit(r.statusCode===200?0:1)}).on('error',()=>process.exit(1))"]
@@ -217,6 +220,26 @@ services:
     command: >
       bash -c "apt-get update -qq && apt-get install -y --no-install-recommends curl > /dev/null && pip install --quiet requests psycopg2-binary && bash setup.sh"
     restart: "no"
+
+  iot-simulator:
+    image: python:3.11-slim
+    container_name: iot-simulator
+    depends_on:
+      - mosquitto
+      - orion-ld
+      - setup
+    networks:
+      - fiware_net
+    environment:
+      - MQTT_HOST=mosquitto
+      - MQTT_PORT=1883
+      - ORION_URL=http://orion-ld:1026
+    volumes:
+      - ./iot:/app/iot:ro
+    working_dir: /app
+    command: >
+      bash -c "pip install --quiet paho-mqtt requests && python iot/simulator.py"
+    restart: unless-stopped
 
   frontend:
     image: nginx:stable-alpine

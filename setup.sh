@@ -27,7 +27,7 @@ HTTP_CODE=$(curl -sS -o /dev/stderr -w "%{http_code}" -X POST "${IOTAGENT_URL}/i
         "apikey": "bicicoruna",
         "cbroker": "http://orion-ld:1026",
         "entity_type": "station_status",
-        "resource": "/bicicoruna"
+        "resource": "/iot/json"
       }
     ]
   }') || true
@@ -54,7 +54,6 @@ for i in $(seq 1 15); do
       "protocol": "PDI-IoTA-JSON",
       "transport": "MQTT",
       "apikey": "bicicoruna",
-      "resource": "/attrs",
       "timezone": "Europe/Madrid",
       "attributes": [
         { "object_id": "num_bikes_available", "name": "num_bikes_available", "type": "Number" },
@@ -68,6 +67,11 @@ for i in $(seq 1 15); do
           "name": "refStation",
           "type": "Relationship",
           "value": "${STATION_ENTITY_ID}"
+        },
+        {
+          "name": "city",
+          "type": "Text",
+          "value": "acoruna"
         }
       ]
     }
@@ -134,7 +138,8 @@ PAYLOAD_STATION='{
     },
     "throttling": 1,
     "@context": [
-      "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context.jsonld"
+      "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context.jsonld",
+      "https://raw.githubusercontent.com/smart-data-models/dataModel.GBFS/master/context.jsonld"
     ]
   }'
 create_subscription "$PAYLOAD_STATION" "station_status -> QuantumLeap"

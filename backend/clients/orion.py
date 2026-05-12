@@ -15,9 +15,13 @@ logger = logging.getLogger(__name__)
 
 # Context URIs for different entity type families
 # These MUST match the @context used when creating the entities (see seed_current_data.py)
-GBFS_CONTEXT = "https://raw.githubusercontent.com/smart-data-models/dataModel.GBFS/master/context.jsonld"
+# seed_current_data.py uses [smartdatamodels.org/context.jsonld, dataModel.GBFS context.jsonld]
+# For Link headers (single URL), we use smartdatamodels.org as it is the umbrella context
+GBFS_CONTEXT = "https://smartdatamodels.org/context.jsonld"
 WEATHER_CONTEXT = "https://raw.githubusercontent.com/smart-data-models/dataModel.Weather/master/context.jsonld"
 DEVICE_CONTEXT = "https://raw.githubusercontent.com/smart-data-models/dataModel.Device/master/context.jsonld"
+OSLO_CONTEXT = "https://raw.githubusercontent.com/smart-data-models/dataModel.OSLO/master/context.jsonld"
+OSLO_TRIP_CONTEXT = "https://data.vlaanderen.be/doc/applicatieprofiel/mobiliteit-trips-en-aanbod/erkendestandaard/2020-04-23/context/mobiliteit-trips-en-aanbod-ap.jsonld"
 
 # Map entity types to their context for Link header
 TYPE_CONTEXT_MAP = {
@@ -28,6 +32,8 @@ TYPE_CONTEXT_MAP = {
     "geofencing_zones": GBFS_CONTEXT,
     "WeatherObserved": WEATHER_CONTEXT,
     "Device": DEVICE_CONTEXT,
+    "BicycleParkingStation": OSLO_CONTEXT,
+    "Trip": OSLO_TRIP_CONTEXT,
 }
 
 

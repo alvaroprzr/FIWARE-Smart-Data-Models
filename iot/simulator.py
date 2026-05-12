@@ -44,7 +44,7 @@ def load_stations_from_orion() -> List[Tuple[str, int]]:
         endpoint,
         headers={
             "Accept": "application/ld+json",
-            "Content-Type": "application/ld+json",
+            "Link": '<https://smartdatamodels.org/context.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"',
             "Fiware-Service": "smartmobilityhub",
             "Fiware-ServicePath": "/acoruna",
         },
@@ -67,15 +67,21 @@ def load_stations_from_orion() -> List[Tuple[str, int]]:
     for entity in entities:
         if not isinstance(entity, dict):
             continue
-        station_id = entity.get("station_id")
-        capacity_raw = entity.get("capacity")
-        if not station_id or capacity_raw is None:
-            continue
-        try:
-            capacity = max(1, int(capacity_raw))
-        except (TypeError, ValueError):
-            continue
-        stations.append((str(station_id), capacity))
+        # station_information is a single feed entity: data.stations[] holds all stations
+        data = entity.get("data", {})
+        if isinstance(data, dict):
+            for st in data.get("stations", []):
+                if not isinstance(st, dict):
+                    continue
+                station_id = st.get("station_id")
+                capacity_raw = st.get("capacity")
+                if not station_id or capacity_raw is None:
+                    continue
+                try:
+                    capacity = max(1, int(capacity_raw))
+                except (TypeError, ValueError):
+                    continue
+                stations.append((str(station_id), capacity))
 
     if not stations:
         print("[startup] Orion returned no valid stations, using fallback")
@@ -150,6 +156,7 @@ def build_payload(num_bikes_available: int, num_docks_available: int) -> str:
     payload = {
         "num_bikes_available": num_bikes_available,
         "num_docks_available": num_docks_available,
+        "last_reported": int(time.time()),
     }
     return json.dumps(payload)
 
