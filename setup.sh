@@ -193,4 +193,17 @@ echo "- seed_historical_data.py solo carga si CrateDB está vacío para evitar d
 python3 scripts/seed_current_data.py || echo "seed_current_data.py exited with non-zero code"
 python3 scripts/seed_historical_data.py || echo "seed_historical_data.py exited with non-zero code"
 
+BACKEND_URL=${BACKEND_URL:-http://fastapi-backend:8000}
+echo "Esperando a que el backend esté disponible para entrenar el modelo ML..."
+until curl -sf "${BACKEND_URL}/health" > /dev/null 2>&1; do
+  sleep 3
+done
+echo "Entrenando modelo de predicción de demanda..."
+TRAIN_CODE=$(curl -sS -o /dev/stderr -w "%{http_code}" -X POST "${BACKEND_URL}/api/train") || true
+if [[ "$TRAIN_CODE" == "200" ]]; then
+  echo "Modelo ML entrenado correctamente."
+else
+  echo "Aviso: entrenamiento ML devolvió HTTP ${TRAIN_CODE} (las predicciones usarán fallback)"
+fi
+
 echo "Setup completado. Accede a http://localhost:8081"

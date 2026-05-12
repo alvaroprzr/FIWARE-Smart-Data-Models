@@ -17,7 +17,6 @@ https://github.com/alvaroprzr/FIWARE-Smart-Data-Models
 ### Antes de instalar
 - **Docker Engine (v24+)** o Docker Desktop con Docker Compose plugin (v2.0+)
 - **Git 2.0+**
-- **Python 3.11+** y pip (solo para instalación inicial)
 - **LM Studio** (https://lmstudio.ai): descargar modelo Gemma 2B o 7B y mantener el servidor local activo en **puerto 1234** durante toda la sesión
 
 ### Hardware mínimo recomendado
@@ -73,34 +72,19 @@ Espera a que todos muestren estado `Up` o `healthy`. El servicio `setup` aparece
 1. Registra el service group del IoT Agent (apikey `bicicoruna`, MQTT, NGSI-LD)
 2. Crea 4 suscripciones: `station_status` → QuantumLeap, `WeatherObserved` → QuantumLeap, `Trip` → QuantumLeap, `station_status` → backend alertas
 3. Ejecuta `seed_current_data.py`: crea o actualiza las 15 estaciones GBFS y entidades OSLO en Orion-LD
-4. Ejecuta `seed_historical_data.py`: carga 10 días de histórico en CrateDB **solo si las tablas están vacías**
+4. Ejecuta `seed_historical_data.py`: carga 10 días de histórico en CrateDB (idempotente: respeta datos existentes y refresca el clima si está desactualizado)
+5. Entrena los modelos ML de predicción de demanda (RandomForest t+30 min y t+60 min) llamando a `POST /api/train` en el backend; los modelos se guardan en `backend/ml/` y persisten entre reinicios
 
-**Duración total**: ~2-3 minutos (el seed histórico inserta ~14.400 filas).
+**Duración total**: ~3-4 minutos (seed ~14.400 filas + entrenamiento ~1-2 min).
 
-### Paso 5: Entrenar modelo ML (dentro del contenedor)
-
-Ahora entrena el modelo de predicción de demanda con los datos históricos:
-
-```bash
-docker compose exec fastapi-backend python ml/train.py
-```
-
-Este comando:
-- Lee 10 días de histórico desde CrateDB
-- Entrena 2 modelos RandomForest (30 min y 60 min)
-- Persiste los modelos en `/backend/ml/` (montados como volumen)
-- Habilita predicciones en los endpoints `/api/stations/{id}/forecast`
-
-**Duración**: ~1-2 minutos.
-
-### Paso 6: Verificar instalación
+### Paso 5: Verificar instalación
 
 Comprueba que todo está en marcha:
 
 ```bash
 # Backend
 curl http://localhost:8000/health
-# Respuesta esperada: {"status":"healthy"}
+# Respuesta esperada: {"status":"ok","service":"smart-mobility-hub-api",...}
 
 # Orion-LD
 curl http://localhost:1026/version
@@ -185,173 +169,7 @@ Esto borra:
 - Dashboards y configuración de Grafana
 - Datos de MongoDB
 
-Para restaurar el estado, vuelve a ejecutar desde el Paso 3 de la instalación inicial (`docker compose up -d --build`). El servicio `setup` se ejecutará automáticamente.
-
----
-
----
-
-## (OPCIONAL) Provisioning y seed manual
-
-Si el servicio `setup` de docker-compose falla o quieres configurar manualmente, sigue los pasos a continuación. Las suscripciones usan IDs explícitos (son idempotentes: si ya existen devuelven 409 y se ignoran).
-
-⚠️ **No es necesario normalmente**: `docker compose up -d` ya ejecuta el provisioning automático.
-
-### Paso A: Registrar el service group del IoT Agent
-
-```bash
-curl -X POST http://localhost:4041/iot/services \
-  -H "Content-Type: application/json" \
-  -H "Fiware-Service: smartmobilityhub" \
-  -H "Fiware-ServicePath: /acoruna" \
-  -d '{
-    "services": [
-      {
-        "apikey": "bicicoruna",
-        "cbroker": "http://orion-ld:1026",
-        "entity_type": "station_status",
-        "resource": "/iot/json"
-      }
-    ]
-  }'
-```
-
-Respuesta esperada: HTTP 201 (Created).
-
-### Paso B: Crear la suscripción Orion-LD → QuantumLeap (station_status)
-
-```bash
-curl -X POST http://localhost:1026/ngsi-ld/v1/subscriptions \
-  -H "Content-Type: application/ld+json" \
-  -H "Fiware-Service: smartmobilityhub" \
-  -H "Fiware-ServicePath: /acoruna" \
-  -d '{
-    "id": "urn:ngsi-ld:Subscription:station_status_to_quantumleap",
-    "type": "Subscription",
-    "name": "station_status_changes_to_quantumleap",
-    "description": "Notificar cambios de station_status para persistencia historica en QuantumLeap",
-    "entities": [
-      {
-        "type": "station_status"
-      }
-    ],
-    "watchedAttributes": [
-      "num_bikes_available",
-      "num_docks_available",
-      "is_renting",
-      "is_returning",
-      "last_reported"
-    ],
-    "notification": {
-      "attributes": [
-        "num_bikes_available",
-        "num_docks_available",
-        "is_renting",
-        "is_returning",
-        "last_reported",
-        "refStation"
-      ],
-      "endpoint": {
-        "uri": "http://quantumleap:8668/v2/notify",
-        "accept": "application/json"
-      }
-    },
-    "throttling": 1,
-    "@context": [
-      "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context.jsonld",
-      "https://raw.githubusercontent.com/smart-data-models/dataModel.GBFS/master/context.jsonld"
-    ]
-  }'
-```
-
-Respuesta esperada: HTTP 201 (Created) con Location header.
-
-### Paso C: Crear la suscripción Orion-LD → QuantumLeap (WeatherObserved)
-
-```bash
-curl -X POST http://localhost:1026/ngsi-ld/v1/subscriptions \
-  -H "Content-Type: application/ld+json" \
-  -H "Fiware-Service: smartmobilityhub" \
-  -H "Fiware-ServicePath: /acoruna" \
-  -d '{
-    "id": "urn:ngsi-ld:Subscription:weatherobserved_to_quantumleap",
-    "type": "Subscription",
-    "name": "weatherobserved_changes_to_quantumleap",
-    "description": "Notificar cambios de WeatherObserved para persistencia historica en QuantumLeap",
-    "entities": [
-      { "type": "WeatherObserved" }
-    ],
-    "watchedAttributes": ["temperature","windSpeed","dateObserved"],
-    "notification": {
-      "attributes": ["temperature","windSpeed","dateObserved","location","refDevice"],
-      "endpoint": { "uri": "http://quantumleap:8668/v2/notify", "accept": "application/json" }
-    },
-    "throttling": 5,
-    "@context": [
-      "https://smartdatamodels.org/context.jsonld",
-      "https://raw.githubusercontent.com/smart-data-models/dataModel.Weather/master/context.jsonld"
-    ]
-  }'
-```
-
-### Paso D: Crear la suscripción Orion-LD → QuantumLeap (Trip)
-```bash
-curl -X POST http://localhost:1026/ngsi-ld/v1/subscriptions \
-  -H "Content-Type: application/ld+json" \
-  -H "Fiware-Service: smartmobilityhub" \
-  -H "Fiware-ServicePath: /acoruna" \
-  -d '{
-    "id": "urn:ngsi-ld:Subscription:trip_to_quantumleap",
-    "type": "Subscription",
-    "name": "trip_changes_to_quantumleap",
-    "description": "Notificar cambios de Trip para persistencia historica en QuantumLeap",
-    "entities": [
-      { "type": "Trip" }
-    ],
-    "watchedAttributes": ["departureTime","arrivalTime","refOrigin","refDestination"],
-    "notification": {
-      "attributes": ["departureTime","arrivalTime","refOrigin","refDestination"],
-      "endpoint": { "uri": "http://quantumleap:8668/v2/notify", "accept": "application/json" }
-    },
-    "throttling": 5,
-    "@context": [
-      "https://data.vlaanderen.be/doc/applicatieprofiel/mobiliteit-trips-en-aanbod/erkendestandaard/2020-04-23/context/mobiliteit-trips-en-aanbod-ap.jsonld"
-    ]
-  }'
-```
-
-### Paso E: Cargar datos actuales de prueba
-
-```bash
-source .venv/bin/activate  # Si no está activado
-python scripts/seed_current_data.py
-```
-
-Este script inyecta las 15 estaciones y datos actuales en Orion-LD. Envía automáticamente los headers FIWARE requeridos (`Fiware-Service`, `Fiware-ServicePath`).
-
-### Paso F: Cargar datos históricos de prueba
-
-```bash
-python scripts/seed_historical_data.py
-```
-
-Carga 10 días de histórico en CrateDB (~14.400 filas). El script verifica si ya existen datos y omite la carga si las tablas no están vacías.
-
-### Paso G: Entrenar modelo ML
-
-```bash
-docker compose exec fastapi-backend python ml/train.py
-```
-
-### Acceso a la aplicación
-
-Todos los endpoints están listos:
-
-```
-Frontend:     http://localhost:8081
-Grafana:      http://localhost:8081/grafana/
-API Swagger:  http://localhost:8000/docs
-```
+Para restaurar el estado, vuelve a ejecutar desde el Paso 3 de la instalación inicial (`docker compose up -d --build`). El servicio `setup` ejecutará automáticamente el provisioning, el seed y el entrenamiento ML.
 
 ---
 
@@ -383,7 +201,6 @@ El frontend utiliza una **arquitectura modularizada con 4 módulos ES6 independi
 | `js/utils.js` | Estado compartido (`appState`), configuración de ciudades, funciones utilitarias | 4.5 KB |
 | `js/map.js` | Mapa Leaflet, carga de estaciones, marcadores, heatmap de viajes, predicciones | 13 KB |
 | `js/chat.js` | Panel de chat, mensajería con LLM backend vía `/api/chat` | 2.1 KB |
-
 | `js/charts.js` | Gráfico doughnut de CO₂ ahorrado con plugin de etiqueta central | 3.0 KB |
 
 ### Flujo de inicialización
@@ -454,17 +271,17 @@ docker compose up -d --build
 ```bash
 docker compose down -v
 docker compose up -d --build
-# El servicio setup corre automáticamente; espera a que salga con Exited (0)
-docker compose exec fastapi-backend python ml/train.py
+# El servicio setup corre automáticamente (provisioning + seed + ML); espera a que salga con Exited (0)
 ```
 
-### Problema: Predicciones no disponibles en `/api/stations/{id}/forecast`
+### Problema: Predicciones muestran valor fijo (modelo no entrenado)
 
-**Causa**: El modelo ML no fue entrenado.  
-**Solución**:
+**Causa**: El entrenamiento automático del setup no se completó (p. ej. el backend no estaba listo a tiempo).  
+**Solución**: Lanza el entrenamiento manualmente vía la API:
 
 ```bash
-docker compose exec fastapi-backend python ml/train.py
+curl -X POST http://localhost:8000/api/train
+# Respuesta esperada: {"status":"ok","models":["model_30","model_60"],"model_used":"random_forest"}
 ```
 
 ---

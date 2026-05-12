@@ -42,7 +42,7 @@
 | Tabla | Filas | Rango |
 |-------|-------|-------|
 | `crate.etstation_status` | 14.400 | últimos 10 días, 15 min/estación |
-| `crate.etweatherobserved` | 240 | últimos 10 días, 1 h |
+| `crate.etweatherobserved` | 264 | últimos 10 días + día actual, 1 h |
 | `crate.trips` | 200 | últimos 10 días |
 | `mtsmartmobilityhub.etstation_status` | creciente | datos live de QuantumLeap |
 
@@ -103,9 +103,11 @@ docker compose up -d
 # Seed inicial (idempotente)
 ORION_URL=http://localhost:1026 python3 scripts/seed_current_data.py
 
-# Re-seed histórico (requiere vaciar las tablas primero)
-# docker exec cratedb crash --command "DELETE FROM crate.etstation_status; ..."
+# Refrescar weather si tiene menos de 264 filas (idempotente; no toca station_status ni trips)
 python3 scripts/seed_historical_data.py
+
+# Re-seed histórico completo (requiere reset total de volúmenes primero)
+# docker compose down -v && docker compose up -d --build
 
 # Tests
 PYTHONPATH=backend .venv/bin/pytest tests/test_api.py -v

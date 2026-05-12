@@ -37,7 +37,10 @@ STATIONS: List[Tuple[str, float, float, int]] = [
     ("ACORUNA-015", 43.37025, -8.40610, 20),
 ]
 
-RNG = random.Random(42)
+RNG = random.Random(42)           # station_status y trips
+WEATHER_RNG = random.Random(42)   # weather — instancia independiente para poder regenerar por separado
+
+EXPECTED_WEATHER_ROWS = 264  # 11 días × 24 horas
 
 
 def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -126,42 +129,42 @@ def generate_station_status_rows(end_date: datetime) -> List[Tuple[Any, ...]]:
 
 
 def generate_weather_rows(end_date: datetime) -> List[Tuple[Any, ...]]:
-    """Generate 10 days of weatherobserved rows (hourly)."""
+    """Generate 10 days of weatherobserved rows (hourly), plus one extra day so data reaches end_date."""
     rows = []
     start_date = end_date - timedelta(days=10)
     current_time = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
 
     entity_id = "urn:ngsi-ld:WeatherObserved:acoruna:marina-001"
 
-    for day_offset in range(10):
+    for day_offset in range(11):
         current_day = start_date + timedelta(days=day_offset)
         day_of_year = current_day.timetuple().tm_yday
         month = current_day.month
         
-        is_storm_day = RNG.random() < 0.10
-        
+        is_storm_day = WEATHER_RNG.random() < 0.10
+
         for hour in range(24):
             current_time = current_day.replace(hour=hour, minute=0, second=0, microsecond=0)
-            
+
             if is_storm_day:
-                wind_speed = RNG.uniform(11, 16)
+                wind_speed = WEATHER_RNG.uniform(11, 16)
             else:
-                wind_speed = RNG.gauss(5.5, 2.5)
+                wind_speed = WEATHER_RNG.gauss(5.5, 2.5)
                 wind_speed = max(0, min(18, wind_speed))
-            
-            wind_direction = RNG.randint(270, 360)
-            
+
+            wind_direction = WEATHER_RNG.randint(270, 360)
+
             temp_base = 13 + (3 * math.sin(2 * math.pi * (month - 1) / 12))
             temp_diurnal = 2 * math.sin(2 * math.pi * (hour - 12) / 24)
-            temperature = temp_base + temp_diurnal + RNG.gauss(0, 0.5)
-            
-            rand_precip = RNG.random()
+            temperature = temp_base + temp_diurnal + WEATHER_RNG.gauss(0, 0.5)
+
+            rand_precip = WEATHER_RNG.random()
             if rand_precip < 0.70:
                 precipitation = 0.0
             elif rand_precip < 0.95:
-                precipitation = RNG.uniform(0.1, 2.0)
+                precipitation = WEATHER_RNG.uniform(0.1, 2.0)
             else:
-                precipitation = RNG.uniform(2.0, 8.0)
+                precipitation = WEATHER_RNG.uniform(2.0, 8.0)
             
             rows.append((
                 current_time,
@@ -229,17 +232,27 @@ def insert_in_batches(conn: Any, query: str, rows: List[Tuple[Any, ...]], batch_
 
 
 def historical_data_already_loaded(cursor: Any) -> bool:
-    """Return True when the historical dataset was already loaded into CrateDB.
+    """Return True when station_status and trips are already loaded.
 
-    The seed is intended for the first initialization only. If any of the tables
-    already contains rows, we skip the insert phase to avoid duplicating data.
+    Weather is checked separately by weather_needs_refresh() so it can be
+    refreshed independently without requiring a full reset.
     """
-    for table_name in ("etstation_status", "etweatherobserved", "trips"):
+    for table_name in ("etstation_status", "trips"):
         cursor.execute(f"SELECT COUNT(*) FROM {table_name}")
         row_count = cursor.fetchone()[0]
         if row_count > 0:
             print(f"Datos hist\u00f3ricos ya presentes en {table_name} ({row_count} filas). Se omite el seed.")
             return True
+    return False
+
+
+def weather_needs_refresh(cursor: Any) -> bool:
+    """Return True if weather data is missing or has fewer rows than expected."""
+    cursor.execute("SELECT COUNT(*) FROM etweatherobserved")
+    count = cursor.fetchone()[0]
+    if count < EXPECTED_WEATHER_ROWS:
+        print(f"Weather incompleto ({count}/{EXPECTED_WEATHER_ROWS} filas). Se regenera.")
+        return True
     return False
 
 
@@ -292,6 +305,20 @@ def main() -> None:
     conn.commit()
 
     if historical_data_already_loaded(cursor):
+        if weather_needs_refresh(cursor):
+            print("Regenerando datos de weather...")
+            cursor.execute("DELETE FROM etweatherobserved")
+            conn.commit()
+            end_date = datetime.now(timezone.utc).replace(tzinfo=None)
+            weather_rows = generate_weather_rows(end_date)
+            print("Insertando weather...")
+            query = """
+                INSERT INTO etweatherobserved
+                (time, entity_id, temperature, wind_speed, precipitation, wind_direction)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """
+            n = insert_in_batches(conn, query, weather_rows, batch_size=500)
+            print(f"  {n} filas de weather insertadas")
         cursor.close()
         conn.close()
         return
