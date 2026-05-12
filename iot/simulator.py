@@ -44,7 +44,7 @@ def load_stations_from_orion() -> List[Tuple[str, int]]:
         endpoint,
         headers={
             "Accept": "application/ld+json",
-            "Link": '<https://smartdatamodels.org/context.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"',
+            "Link": '<https://raw.githubusercontent.com/smart-data-models/dataModel.GBFS/master/context.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"',
             "Fiware-Service": "smartmobilityhub",
             "Fiware-ServicePath": "/acoruna",
         },

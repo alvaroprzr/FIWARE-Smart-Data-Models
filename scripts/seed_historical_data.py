@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Seed 90 days of historical data into CrateDB for Smart Mobility Hub."""
+"""Seed 10 days of historical data into CrateDB for Smart Mobility Hub."""
 
 from __future__ import annotations
 
@@ -92,13 +92,13 @@ def compute_num_bikes(
 
 
 def generate_station_status_rows(end_date: datetime) -> List[Tuple[Any, ...]]:
-    """Generate 5 days of station_status rows (15 min intervals)."""
+    """Generate 10 days of station_status rows (15 min intervals)."""
     rows = []
-    start_date = end_date - timedelta(days=5)
+    start_date = end_date - timedelta(days=10)
     current_time = start_date
-    
+
     station_index = 0
-    for _ in range(5 * 24 * 4 * 15):
+    for _ in range(10 * 24 * 4 * 15):
         station_id, _, _, capacity = STATIONS[station_index % 15]
         entity_id = f"urn:ngsi-ld:station_status:acoruna:{station_id}"
         
@@ -126,14 +126,14 @@ def generate_station_status_rows(end_date: datetime) -> List[Tuple[Any, ...]]:
 
 
 def generate_weather_rows(end_date: datetime) -> List[Tuple[Any, ...]]:
-    """Generate 5 days of weatherobserved rows (hourly)."""
+    """Generate 10 days of weatherobserved rows (hourly)."""
     rows = []
-    start_date = end_date - timedelta(days=5)
+    start_date = end_date - timedelta(days=10)
     current_time = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
-    
+
     entity_id = "urn:ngsi-ld:WeatherObserved:acoruna:marina-001"
-    
-    for day_offset in range(5):
+
+    for day_offset in range(10):
         current_day = start_date + timedelta(days=day_offset)
         day_of_year = current_day.timetuple().tm_yday
         month = current_day.month
@@ -176,34 +176,17 @@ def generate_weather_rows(end_date: datetime) -> List[Tuple[Any, ...]]:
 
 
 def generate_trips(end_date: datetime) -> List[Tuple[Any, ...]]:
-    """Generate 100 trips distributed by demand peaks."""
+    """Generate 200 trips uniformly distributed over 10 days."""
     rows = []
-    start_date = end_date - timedelta(days=5)
-    
-    for trip_num in range(100):
+    start_date = end_date - timedelta(days=10)
+
+    for trip_num in range(200):
         trip_id = f"TRIP-{trip_num:05d}"
-        
+
         random_time = start_date + timedelta(
-            seconds=RNG.randint(0, int(5 * 24 * 3600))
+            seconds=RNG.randint(0, int(10 * 24 * 3600))
         )
-        
-        hour = random_time.hour
-        weekday = random_time.weekday()
-        is_weekend = weekday >= 5
-        
-        if not is_weekend:
-            if 6 <= hour < 9 or 17 <= hour < 20:
-                demand_weight = 0.40
-            elif 12 <= hour < 14:
-                demand_weight = 0.10
-            else:
-                demand_weight = 0.20
-        else:
-            if 10 <= hour < 13:
-                demand_weight = 0.25
-            else:
-                demand_weight = 0.15
-        
+
         start_station_idx = RNG.randint(0, 14)
         end_station_idx = RNG.randint(0, 14)
         while end_station_idx == start_station_idx:
@@ -309,8 +292,9 @@ def main() -> None:
     conn.commit()
 
     if historical_data_already_loaded(cursor):
-        print("Data exists, but generating fresh data up to today anyway...")
-        pass
+        cursor.close()
+        conn.close()
+        return
 
     cursor.close()
     
@@ -320,16 +304,13 @@ def main() -> None:
     station_rows = generate_station_status_rows(end_date)
     
     print("Insertando station_status...")
-    for i in range(0, len(station_rows), 13000):
-        batch = station_rows[i:i + 13000]
-        query = """
-            INSERT INTO etstation_status
-            (time, entity_id, station_id, num_bikes_available, num_docks_available, capacity, is_renting)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
-        """
-        inserted = insert_in_batches(conn, query, batch, batch_size=500)
-        day_num = (i // 13000) * 10 + 10 if i > 0 else 10
-        print(f"Día {min(day_num, 90)}/90 insertado")
+    query = """
+        INSERT INTO etstation_status
+        (time, entity_id, station_id, num_bikes_available, num_docks_available, capacity, is_renting)
+        VALUES (%s, %s, %s, %s, %s, %s, %s)
+    """
+    insert_in_batches(conn, query, station_rows, batch_size=500)
+    print(f"  {len(station_rows)} filas insertadas")
     
     print("Generando datos de weather...")
     weather_rows = generate_weather_rows(end_date)

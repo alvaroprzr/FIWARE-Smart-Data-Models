@@ -34,7 +34,7 @@ Rol:
 
 Configuracion NGSI-LD critica:
 - `IOTA_CB_NGSI_VERSION=ld`: activa modo NGSI-LD nativo en el agente.
-- `IOTA_JSON_LD_CONTEXT=https://smartdatamodels.org/context.jsonld`: contexto JSON-LD que se incluye en cada PATCH a Orion-LD. **Obligatorio** para que los atributos MQTT se resuelvan a las URIs GBFS correctas (sin esto los atributos se crean bajo URIs genericas y no coinciden con los seeded).
+- `IOTA_JSON_LD_CONTEXT=https://raw.githubusercontent.com/smart-data-models/dataModel.GBFS/master/context.jsonld`: contexto JSON-LD GBFS que se incluye en cada PATCH a Orion-LD. **Obligatorio** para que los atributos MQTT (`num_bikes_available`, `num_docks_available`, `last_reported`) se resuelvan a las URIs GBFS correctas (sin esto los atributos se crean bajo URIs genericas y no coinciden con los seeded).
 - `IOTA_FALLBACK_TENANT` y `IOTA_FALLBACK_PATH`: tenant/path por defecto cuando el mensaje MQTT no contiene informacion de servicio explícita.
 
 Mapeo MQTT -> NGSI-LD:
@@ -138,7 +138,7 @@ Provisioning automatico:
 
 Rol:
 - Capa de experiencia de usuario para consulta de estaciones, mapa, predicciones y chat.
-- Arquitectura modularizada en **5 módulos ES6 independientes** sin bundler (carga directa via `<script type="module">`).
+- Arquitectura modularizada en **4 módulos ES6 independientes** sin bundler (carga directa via `<script type="module">`).
 
 **Módulos del frontend:**
 
@@ -166,7 +166,7 @@ Rol:
    - Manejo de errores con feedback de conexión.
 
 
-5. **`js/charts.js`** (Chart.js Visualization)
+4. **`js/charts.js`** (Chart.js Visualization)
    - Gráfico doughnut: Ahorro CO₂ acumulado vs Objetivo restante.
    - Plugin personalizado con etiqueta central: "X.X kg" + "CO2 ahorrado".
    - Cálculo sostenibilidad: totalKg = Σ(trip_count × avg_distance × 0.21).
@@ -457,7 +457,7 @@ services:
       - IOTA_TIMESTAMP=true
       - IOTA_LOG_LEVEL=INFO
       - IOTA_CB_NGSI_VERSION=ld
-      - IOTA_JSON_LD_CONTEXT=https://smartdatamodels.org/context.jsonld
+      - IOTA_JSON_LD_CONTEXT=https://raw.githubusercontent.com/smart-data-models/dataModel.GBFS/master/context.jsonld
       - IOTA_FALLBACK_TENANT=smartmobilityhub
       - IOTA_FALLBACK_PATH=/acoruna
       - IOTA_AMQP_DISABLED=true
@@ -621,7 +621,7 @@ datasources:
       "apikey": "bicicoruna",
       "cbroker": "http://orion-ld:1026",
       "entity_type": "station_status",
-      "resource": ""
+      "resource": "/iot/json"
     }
   ]
 }
@@ -644,11 +644,11 @@ Endpoint:
       "transport": "MQTT",
       "timezone": "Europe/Madrid",
       "attributes": [
-        {
-          "object_id": "num_bikes_available",
-          "name": "num_bikes_available",
-          "type": "Number"
-        }
+        { "object_id": "num_bikes_available",  "name": "num_bikes_available",  "type": "Number" },
+        { "object_id": "num_docks_available",  "name": "num_docks_available",  "type": "Number" },
+        { "object_id": "last_reported",        "name": "last_reported",        "type": "Number" },
+        { "object_id": "is_renting",           "name": "is_renting",           "type": "Boolean" },
+        { "object_id": "is_returning",         "name": "is_returning",         "type": "Boolean" }
       ],
       "static_attributes": [
         {

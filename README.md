@@ -73,9 +73,9 @@ Espera a que todos muestren estado `Up` o `healthy`. El servicio `setup` aparece
 1. Registra el service group del IoT Agent (apikey `bicicoruna`, MQTT, NGSI-LD)
 2. Crea 4 suscripciones: `station_status` → QuantumLeap, `WeatherObserved` → QuantumLeap, `Trip` → QuantumLeap, `station_status` → backend alertas
 3. Ejecuta `seed_current_data.py`: crea o actualiza las 15 estaciones GBFS y entidades OSLO en Orion-LD
-4. Ejecuta `seed_historical_data.py`: carga 90 días de histórico en CrateDB **solo si las tablas están vacías**
+4. Ejecuta `seed_historical_data.py`: carga 10 días de histórico en CrateDB **solo si las tablas están vacías**
 
-**Duración total**: ~2-3 minutos (el seed histórico inserta ~130k filas).
+**Duración total**: ~2-3 minutos (el seed histórico inserta ~14.400 filas).
 
 ### Paso 5: Entrenar modelo ML (dentro del contenedor)
 
@@ -86,7 +86,7 @@ docker compose exec fastapi-backend python ml/train.py
 ```
 
 Este comando:
-- Lee 90 días de histórico desde CrateDB
+- Lee 10 días de histórico desde CrateDB
 - Entrena 2 modelos RandomForest (30 min y 60 min)
 - Persiste los modelos en `/backend/ml/` (montados como volumen)
 - Habilita predicciones en los endpoints `/api/stations/{id}/forecast`
@@ -181,7 +181,7 @@ docker compose down -v
 
 Esto borra:
 - Todas las entidades en Orion-LD (estaciones, estado actual)
-- Histórico de 90 días en CrateDB
+- Histórico de 10 días en CrateDB
 - Dashboards y configuración de Grafana
 - Datos de MongoDB
 
@@ -189,7 +189,9 @@ Para restaurar el estado, vuelve a ejecutar desde el Paso 3 de la instalación i
 
 ---
 
-### 5. (OPCIONAL) Pasos manuales alternativos
+---
+
+## (OPCIONAL) Provisioning y seed manual
 
 Si el servicio `setup` de docker-compose falla o quieres configurar manualmente, sigue los pasos a continuación. Las suscripciones usan IDs explícitos (son idempotentes: si ya existen devuelven 409 y se ignoran).
 
@@ -333,7 +335,7 @@ Este script inyecta las 15 estaciones y datos actuales en Orion-LD. Envía autom
 python scripts/seed_historical_data.py
 ```
 
-Carga 90 días de histórico en CrateDB (~130k filas). El script verifica si ya existen datos y omite la carga si las tablas no están vacías.
+Carga 10 días de histórico en CrateDB (~14.400 filas). El script verifica si ya existen datos y omite la carga si las tablas no están vacías.
 
 ### Paso G: Entrenar modelo ML
 
@@ -372,7 +374,7 @@ API Swagger:  http://localhost:8000/docs
 
 ## Arquitectura del Frontend (Modularizado ES6)
 
-El frontend utiliza una **arquitectura modularizada con 5 módulos ES6 independientes** (sin bundler), cargados directamente via `<script type="module">`. Esta arquitectura facilita el mantenimiento, escalabilidad y permite que cada módulo sea responsable de su dominio específico.
+El frontend utiliza una **arquitectura modularizada con 4 módulos ES6 independientes** (sin bundler), cargados directamente via `<script type="module">`. Esta arquitectura facilita el mantenimiento, escalabilidad y permite que cada módulo sea responsable de su dominio específico.
 
 ### Módulos del Frontend
 
@@ -388,7 +390,7 @@ El frontend utiliza una **arquitectura modularizada con 5 módulos ES6 independi
 
 1. **`index.html`** carga CDN scripts (Leaflet, Chart.js, Tailwind).
 2. **Coordinador minimo** en `<script type="module">`:
-   - Importa los 4 modulos y `utils.js`.
+   - Importa los 4 módulos: `utils.js`, `map.js`, `chat.js`, `charts.js`.
    - Inicializa cada modulo: `initMap()`, `initChat()`, `initCharts()`.
    - Gestiona evento selector de ciudad y ciclo de refresh (30 segundos).
 3. **Estado centralizado** via `appState` (exportado desde `utils.js`): todos los módulos leen/escriben el mismo estado.

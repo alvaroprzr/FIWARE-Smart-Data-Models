@@ -161,7 +161,7 @@ Sensores físicos de los anclajes y GPS de las bicicletas que envían datos de e
 
 ---
 
-**HU-08**
+**HU-08b**
 > *Como analista, quiero ver un heatmap de demanda por zonas de la ciudad, para identificar áreas con necesidad de más estaciones o redistribución de bicis.*
 
 **Criterios de aceptación:**
@@ -231,8 +231,8 @@ GBFSStationStatus  ──refStation──────► GBFSStation
 GBFSFreeBikeStatus ──refStation──────► GBFSStation
 MobilityStation    ──refGBFSStation──► GBFSStation
 Trip               ──refVehicle──────► Device (bici GPS)
-Trip               ──refOrigin────────► GBFSStation
-Trip               ──refDestination──► GBFSStation
+Trip               ──refOrigin────────► MobilityStation
+Trip               ──refDestination──► MobilityStation
 GBFSStation        ──refWeather──────► WeatherObserved
 Device             ──refStation──────► GBFSStation
 ```

@@ -43,8 +43,8 @@ graph TD
   SS -->|refStation hub relation| SI
   FB -->|refStation hub relation| SI
   MSP -->|refGBFSStation hub relation| SI
-  TR -->|refOrigin hub relation| SI
-  TR -->|refDestination hub relation| SI
+  TR -->|refOrigin hub relation| MSP
+  TR -->|refDestination hub relation| MSP
   TR -->|refVehicle hub relation| DEV
   WEA -->|refDevice official| DEV
   SI -->|refWeather hub relation| WEA
@@ -660,15 +660,15 @@ Official context:
   },
   "refOrigin": {
     "type": "Relationship",
-    "object": "urn:ngsi-ld:station_information:acoruna:bicicoruna"
+    "object": "urn:ngsi-ld:BicycleParkingStation:acoruna:ACORUNA-001"
   },
   "refDestination": {
     "type": "Relationship",
-    "object": "urn:ngsi-ld:station_information:acoruna:torre-hercules"
+    "object": "urn:ngsi-ld:BicycleParkingStation:acoruna:ACORUNA-011"
   },
   "refVehicle": {
     "type": "Relationship",
-    "object": "urn:ngsi-ld:Device:acoruna:bike-gps-0142"
+    "object": "urn:ngsi-ld:Device:acoruna:ACORUNA-001"
   },
   "@context": [
     "https://data.vlaanderen.be/doc/applicatieprofiel/mobiliteit-trips-en-aanbod/erkendestandaard/2020-04-23/context/mobiliteit-trips-en-aanbod-ap.jsonld"
@@ -741,11 +741,11 @@ Official description: hardware plus software entity used as sensor, actuator, me
 
 ```json
 {
-  "id": "urn:ngsi-ld:Device:acoruna:bike-gps-0142",
+  "id": "urn:ngsi-ld:Device:acoruna:ACORUNA-001",
   "type": "Device",
-  "controlledProperty": ["location"],
+  "controlledProperty": ["occupancy"],
   "deviceCategory": ["sensor"],
-  "serialNumber": "GPS-ACORUNA-0142",
+  "serialNumber": "SENSOR-ACORUNA-001",
   "hardwareVersion": "1.0",
   "softwareVersion": "2.4.1",
   "firmwareVersion": "1.8.0",
@@ -881,8 +881,8 @@ The following relationships are used at the Smart Mobility Hub integration layer
 | GBFSStationStatus | refStation | GBFSStation | Hub integration |
 | GBFSFreeBikeStatus | refStation | GBFSStation | Hub integration |
 | MobilityStation | refGBFSStation | GBFSStation | Hub integration |
-| Trip | refOrigin | GBFSStation | Hub integration |
-| Trip | refDestination | GBFSStation | Hub integration |
+| Trip | refOrigin | BicycleParkingStation | Hub integration |
+| Trip | refDestination | BicycleParkingStation | Hub integration |
 | Trip | refVehicle | Device | Hub integration |
 | GBFSStation | refWeather | WeatherObserved | Hub integration |
 | Device | refStation | GBFSStation | Hub integration |
