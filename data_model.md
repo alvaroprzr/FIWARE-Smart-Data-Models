@@ -111,11 +111,11 @@ Descripcion oficial: datos maestros de una estacion de bicicleta compartida, inc
 | data.stations[].vehicle_type_capacity | Property | Static | Anclajes instalados por tipo de vehiculo |
 | refWeather | Relationship | Dynamic | Relacion del hub con el ultimo WeatherObserved que cubre el area de la estacion |
 
-Integration note for correction and ingestion in the hub:
+Nota de integracion para correccion e ingesta en el hub:
 
-- `GBFSStation` (`station_information`) is modeled as one feed entity that contains all city stations in `data.stations[]`.
-- In the integration layer, each station is handled and referenced by its `data.stations[].station_id` value.
-- Therefore, `station_id` is the station-level key inside the feed array, not a standalone NGSI-LD entity id by itself.
+- `GBFSStation` (`station_information`) se modela como una unica entidad de feed que contiene todas las estaciones de la ciudad en `data.stations[]`.
+- En la capa de integracion, cada estacion se gestiona y referencia por su valor `data.stations[].station_id`.
+- Por tanto, `station_id` es la clave de nivel de estacion dentro del array del feed, no un identificador de entidad NGSI-LD independiente.
 
 ### Ejemplo JSON-LD
 
@@ -202,12 +202,12 @@ Descripcion oficial: capacidad en tiempo real y disponibilidad de alquiler para 
 
 | Atributo | Tipo NGSI-LD | Estatico o dinamico | Notas |
 |---|---|---|---|
-| id | Property | Static | Entity identifier |
-| type | Property | Static | Must be `station_status` |
-| last_updated | Property | Dynamic | Update timestamp |
-| ttl | Property | Static | Feed refresh window |
-| version | Property | Static | GBFS version |
-| refStation | Relationship | Dynamic | Hub relation to GBFSStation |
+| id | Property | Static | Identificador de la entidad |
+| type | Property | Static | Debe ser `station_status` |
+| last_updated | Property | Dynamic | Marca temporal de actualizacion |
+| ttl | Property | Static | Ventana de refresco del feed |
+| version | Property | Static | Version GBFS |
+| refStation | Relationship | Dynamic | Relacion del hub con GBFSStation |
 
 ### Ejemplo JSON-LD
 
@@ -259,28 +259,28 @@ Descripcion oficial: vehiculos disponibles que no estan vinculados a una estacio
 
 | Atributo | Tipo NGSI-LD | Estatico o dinamico | Notas |
 |---|---|---|---|
-| id | Property | Static | Entity identifier |
-| type | Property | Static | Must be `free_bike_status` |
-| last_updated | Property | Dynamic | Feed update timestamp |
-| ttl | Property | Static | Feed refresh window |
-| version | Property | Static | GBFS version |
-| data | Property | Dynamic | Wrapper object |
-| data.bikes[] | Property | Dynamic | Array of bike objects |
-| data.bikes[].bike_id | Property | Static | Rotating vehicle identifier |
-| data.bikes[].lat | Property | Dynamic | Latitude |
-| data.bikes[].lon | Property | Dynamic | Longitude |
-| data.bikes[].is_reserved | Property | Dynamic | Reserved flag |
-| data.bikes[].is_disabled | Property | Dynamic | Disabled flag |
-| data.bikes[].rental_uris | Property | Static | Rental URIs |
-| data.bikes[].rental_uris.android | Property | Static | Android deep link |
-| data.bikes[].rental_uris.ios | Property | Static | iOS deep link |
-| data.bikes[].rental_uris.web | Property | Static | Web link |
-| data.bikes[].vehicle_type_id | Property | Static | Vehicle type id |
-| data.bikes[].last_reported | Property | Dynamic | Last report time |
-| data.bikes[].current_range_meters | Property | Dynamic | Remaining range |
-| data.bikes[].station_id | Property | Dynamic | Station identifier when docked |
-| data.bikes[].pricing_plan_id | Property | Static | Pricing plan identifier |
-| refStation | Relationship | Dynamic | Hub relation to GBFSStation when a bike is docked |
+| id | Property | Static | Identificador de la entidad |
+| type | Property | Static | Debe ser `free_bike_status` |
+| last_updated | Property | Dynamic | Marca temporal de actualizacion del feed |
+| ttl | Property | Static | Ventana de refresco del feed |
+| version | Property | Static | Version GBFS |
+| data | Property | Dynamic | Objeto contenedor |
+| data.bikes[] | Property | Dynamic | Array de objetos de bicicleta |
+| data.bikes[].bike_id | Property | Static | Identificador rotativo del vehiculo |
+| data.bikes[].lat | Property | Dynamic | Latitud |
+| data.bikes[].lon | Property | Dynamic | Longitud |
+| data.bikes[].is_reserved | Property | Dynamic | Indicador de reserva |
+| data.bikes[].is_disabled | Property | Dynamic | Indicador de bicicleta deshabilitada |
+| data.bikes[].rental_uris | Property | Static | URIs de alquiler |
+| data.bikes[].rental_uris.android | Property | Static | Enlace profundo Android |
+| data.bikes[].rental_uris.ios | Property | Static | Enlace profundo iOS |
+| data.bikes[].rental_uris.web | Property | Static | Enlace web |
+| data.bikes[].vehicle_type_id | Property | Static | Identificador del tipo de vehiculo |
+| data.bikes[].last_reported | Property | Dynamic | Hora del ultimo reporte |
+| data.bikes[].current_range_meters | Property | Dynamic | Autonomia restante |
+| data.bikes[].station_id | Property | Dynamic | Identificador de estacion cuando esta anclada |
+| data.bikes[].pricing_plan_id | Property | Static | Identificador del plan de tarifas |
+| refStation | Relationship | Dynamic | Relacion del hub con GBFSStation cuando la bicicleta esta anclada |
 
 ### Ejemplo JSON-LD
 
@@ -344,36 +344,36 @@ Descripcion oficial: metadatos del sistema de movilidad compartida y de su feed.
 
 | Atributo | Tipo NGSI-LD | Estatico o dinamico | Notas |
 |---|---|---|---|
-| id | Property | Static | Entity identifier |
-| type | Property | Static | Must be `system_information` |
-| last_updated | Property | Dynamic | Feed update timestamp |
-| ttl | Property | Static | Feed refresh window |
-| version | Property | Static | GBFS version |
-| data | Property | Static | Wrapper object |
-| data.system_id | Property | Static | Unique system id |
-| data.language | Property | Static | Feed language |
-| data.name | Property | Static | Public system name |
-| data.short_name | Property | Static | Short name |
-| data.operator | Property | Static | Operator name |
-| data.url | Property | Static | System URL |
-| data.purchase_url | Property | Static | Membership purchase URL |
-| data.start_date | Property | Static | System start date |
-| data.phone_number | Property | Static | Voice contact number |
-| data.email | Property | Static | Customer service email |
-| data.feed_contact_email | Property | Static | Technical feed contact email |
-| data.timezone | Property | Static | System timezone |
-| data.license_url | Property | Static | License URL |
-| data.brand_assets | Property | Static | Brand metadata object |
-| data.brand_assets.brand_last_modified | Property | Static | Brand assets update date |
-| data.brand_assets.brand_image_url | Property | Static | Brand image |
-| data.brand_assets.brand_image_url_dark | Property | Static | Dark brand image |
-| data.brand_assets.color | Property | Static | Brand color |
-| data.brand_assets.terms_url | Property | Static | Terms URL |
-| data.rental_apps | Property | Static | Rental app metadata object |
-| data.rental_apps.android.store_uri | Property | Static | Android app store URI |
-| data.rental_apps.android.discovery_uri | Property | Static | Android app discovery URI |
-| data.rental_apps.ios.store_uri | Property | Static | iOS app store URI |
-| data.rental_apps.ios.discovery_uri | Property | Static | iOS app discovery URI |
+| id | Property | Static | Identificador de la entidad |
+| type | Property | Static | Debe ser `system_information` |
+| last_updated | Property | Dynamic | Marca temporal de actualizacion del feed |
+| ttl | Property | Static | Ventana de refresco del feed |
+| version | Property | Static | Version GBFS |
+| data | Property | Static | Objeto contenedor |
+| data.system_id | Property | Static | Identificador unico del sistema |
+| data.language | Property | Static | Idioma del feed |
+| data.name | Property | Static | Nombre publico del sistema |
+| data.short_name | Property | Static | Nombre corto |
+| data.operator | Property | Static | Nombre del operador |
+| data.url | Property | Static | URL del sistema |
+| data.purchase_url | Property | Static | URL de compra de membresia |
+| data.start_date | Property | Static | Fecha de inicio del sistema |
+| data.phone_number | Property | Static | Numero de contacto telefonico |
+| data.email | Property | Static | Email de atencion al cliente |
+| data.feed_contact_email | Property | Static | Email de contacto tecnico del feed |
+| data.timezone | Property | Static | Zona horaria del sistema |
+| data.license_url | Property | Static | URL de la licencia |
+| data.brand_assets | Property | Static | Objeto de metadatos de marca |
+| data.brand_assets.brand_last_modified | Property | Static | Fecha de actualizacion de recursos de marca |
+| data.brand_assets.brand_image_url | Property | Static | Imagen de marca |
+| data.brand_assets.brand_image_url_dark | Property | Static | Imagen de marca en modo oscuro |
+| data.brand_assets.color | Property | Static | Color corporativo |
+| data.brand_assets.terms_url | Property | Static | URL de terminos |
+| data.rental_apps | Property | Static | Objeto de metadatos de la app de alquiler |
+| data.rental_apps.android.store_uri | Property | Static | URI de la app en la tienda Android |
+| data.rental_apps.android.discovery_uri | Property | Static | URI de descubrimiento Android |
+| data.rental_apps.ios.store_uri | Property | Static | URI de la app en la tienda iOS |
+| data.rental_apps.ios.discovery_uri | Property | Static | URI de descubrimiento iOS |
 
 ### Ejemplo JSON-LD
 
@@ -444,24 +444,24 @@ Descripcion oficial: poligonos de geovallado y sus reglas de circulacion.
 
 | Atributo | Tipo NGSI-LD | Estatico o dinamico | Notas |
 |---|---|---|---|
-| id | Property | Static | Entity identifier |
-| type | Property | Static | Must be `geofencing_zones` |
-| last_updated | Property | Dynamic | Feed update timestamp |
-| ttl | Property | Static | Feed refresh window |
-| version | Property | Static | GBFS version |
-| data | Property | Static | Wrapper object |
-| data.geofencing_zones.features[] | Property | Static | GeoJSON Feature array |
-| data.geofencing_zones.features[].type | Property | Static | Must be `Feature` |
-| data.geofencing_zones.features[].geometry | GeoProperty | Static | GeoJSON MultiPolygon |
-| data.geofencing_zones.features[].properties | Property | Static | Rule container |
-| data.geofencing_zones.features[].properties.name | Property | Static | Zone name |
-| data.geofencing_zones.features[].properties.start | Property | Dynamic | Activation time |
-| data.geofencing_zones.features[].properties.end | Property | Dynamic | Deactivation time |
-| data.geofencing_zones.features[].properties.rules[] | Property | Static | Rule array |
-| data.geofencing_zones.features[].properties.rules[].vehicle_type_id | Property | Static | Vehicle type ids |
-| data.geofencing_zones.features[].properties.rules[].ride_allowed | Property | Static | Ride allowed flag |
-| data.geofencing_zones.features[].properties.rules[].ride_through_allowed | Property | Static | Ride-through allowed flag |
-| data.geofencing_zones.features[].properties.rules[].maximum_speed_kph | Property | Static | Max speed |
+| id | Property | Static | Identificador de la entidad |
+| type | Property | Static | Debe ser `geofencing_zones` |
+| last_updated | Property | Dynamic | Marca temporal de actualizacion del feed |
+| ttl | Property | Static | Ventana de refresco del feed |
+| version | Property | Static | Version GBFS |
+| data | Property | Static | Objeto contenedor |
+| data.geofencing_zones.features[] | Property | Static | Array de Features GeoJSON |
+| data.geofencing_zones.features[].type | Property | Static | Debe ser `Feature` |
+| data.geofencing_zones.features[].geometry | GeoProperty | Static | MultiPolygon GeoJSON |
+| data.geofencing_zones.features[].properties | Property | Static | Contenedor de reglas |
+| data.geofencing_zones.features[].properties.name | Property | Static | Nombre de la zona |
+| data.geofencing_zones.features[].properties.start | Property | Dynamic | Hora de activacion |
+| data.geofencing_zones.features[].properties.end | Property | Dynamic | Hora de desactivacion |
+| data.geofencing_zones.features[].properties.rules[] | Property | Static | Array de reglas |
+| data.geofencing_zones.features[].properties.rules[].vehicle_type_id | Property | Static | Identificadores de tipo de vehiculo |
+| data.geofencing_zones.features[].properties.rules[].ride_allowed | Property | Static | Indicador de circulacion permitida |
+| data.geofencing_zones.features[].properties.rules[].ride_through_allowed | Property | Static | Indicador de paso permitido |
+| data.geofencing_zones.features[].properties.rules[].maximum_speed_kph | Property | Static | Velocidad maxima |
 
 ### Ejemplo JSON-LD
 
@@ -718,7 +718,7 @@ Descripcion oficial: entidad de hardware y software usada como sensor, actuador,
 | description | Property | Static | Descripcion libre |
 | deviceCategory | Property | Static | Categoria del dispositivo |
 | deviceState | Property | Dynamic | Estado operativo |
-| direction | Property | Static | Entrada / Salida / Acceso / Salida |
+| direction | Property | Static | Inlet / Outlet / Entry / Exit |
 | distance | Property | Static | Colocacion basada en distancia |
 | dstAware | Property | Static | Compatibilidad con horario de verano |
 | firmwareVersion | Property | Static | Version de firmware |
