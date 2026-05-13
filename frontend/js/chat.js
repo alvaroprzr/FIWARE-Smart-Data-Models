@@ -66,4 +66,5 @@ export function initChat(city) {
       sendChat(message);
     });
   }
+
 }

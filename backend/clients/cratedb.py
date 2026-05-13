@@ -29,10 +29,14 @@ class CrateDBClient:
         )
 
     def fetch_all(self, query: str, params: tuple[Any, ...] | None = None) -> list[dict[str, Any]]:
-        with self.connect() as connection:
-            with connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cursor:
+        conn = self.connect()
+        conn.autocommit = True
+        try:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cursor:
                 cursor.execute(query, params or ())
                 return [dict(row) for row in cursor.fetchall()]
+        finally:
+            conn.close()
 
     def query(self, sql: str, params: tuple[Any, ...] | None = None) -> list[dict[str, Any]]:
         """Execute a SQL query and return list of dict rows."""
@@ -54,6 +58,20 @@ class CrateDBClient:
             "ORDER BY timestamp ASC"
         )
         return self.fetch_all(sql, (station_id, hours))
+
+    def execute(self, query: str, params: tuple[Any, ...] | None = None) -> None:
+        """Execute a DML statement (INSERT / UPDATE / DELETE).
+
+        Uses autocommit=True so psycopg2 never sends BEGIN/COMMIT/ROLLBACK,
+        which CrateDB's limited transaction support cannot handle.
+        """
+        conn = self.connect()
+        conn.autocommit = True
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute(query, params or ())
+        finally:
+            conn.close()
 
     def get_trips_heatmap(self) -> list[dict[str, Any]]:
         """Aggregate trips by start_station_id and return counts and average distance.

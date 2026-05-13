@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import logging
+import math
 import os
-from datetime import datetime, timezone
+import random
+from datetime import datetime, timedelta, timezone
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -108,6 +111,86 @@ async def ensure_orion_subscriptions() -> None:
             logger.info("Ensured subscription %s", sub.get("id"))
         except Exception as exc:
             logger.warning("Could not ensure subscription %s: %s", sub.get("id"), exc)
+
+
+_LIVE_STATIONS = [
+    ("ACORUNA-001", 43.37095, -8.39580), ("ACORUNA-002", 43.37205, -8.39520),
+    ("ACORUNA-003", 43.36895, -8.39295), ("ACORUNA-004", 43.35695, -8.40640),
+    ("ACORUNA-005", 43.35885, -8.40165), ("ACORUNA-006", 43.37005, -8.39045),
+    ("ACORUNA-007", 43.36840, -8.39210), ("ACORUNA-008", 43.36875, -8.40910),
+    ("ACORUNA-009", 43.37170, -8.41415), ("ACORUNA-010", 43.35990, -8.41080),
+    ("ACORUNA-011", 43.38555, -8.40690), ("ACORUNA-012", 43.36995, -8.39495),
+    ("ACORUNA-013", 43.33255, -8.40490), ("ACORUNA-014", 43.34530, -8.41620),
+    ("ACORUNA-015", 43.37025, -8.40610),
+]
+
+_TRIP_INSERT = (
+    "INSERT INTO crate.trips "
+    "(trip_id, start_station_id, end_station_id, started_at, ended_at, duration_seconds, distance_meters) "
+    "VALUES (%s, %s, %s, %s, %s, %s, %s)"
+)
+
+_trip_logger = logging.getLogger("trip_generator")
+
+
+def _haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    R = 6_371_000
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    a = math.sin(math.radians(lat2 - lat1) / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(math.radians(lon2 - lon1) / 2) ** 2
+    return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+
+def _make_trip_row(started_at: datetime) -> tuple:
+    a = random.randint(0, 14)
+    b = random.randint(0, 14)
+    while b == a:
+        b = random.randint(0, 14)
+    sid_a, la, lo_a = _LIVE_STATIONS[a]
+    sid_b, lb, lo_b = _LIVE_STATIONS[b]
+    dist = _haversine_m(la, lo_a, lb, lo_b)
+    dur = random.randint(180, 1800)
+    trip_id = f"TRIP-LIVE-{int(started_at.timestamp() * 1000)}-{a}{b}"
+    return (trip_id, sid_a, sid_b, started_at, started_at + timedelta(seconds=dur), dur, dist)
+
+
+async def _trip_generator_loop() -> None:
+    await asyncio.sleep(20)  # allow DB to be ready
+    cr = CrateDBClient()
+    loop = asyncio.get_running_loop()
+
+    # Catch-up: fill the gap between the last seeded trip and now
+    try:
+        rows = await loop.run_in_executor(None, cr.query, "SELECT MAX(started_at) AS max_at FROM crate.trips")
+        raw = rows[0]["max_at"] if rows and rows[0]["max_at"] is not None else None
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        if raw is not None:
+            last_dt = raw.replace(tzinfo=None) if isinstance(raw, datetime) else datetime.fromtimestamp(raw / 1000, tz=timezone.utc).replace(tzinfo=None)
+            gap = (now - last_dt).total_seconds()
+            if gap > 300:
+                n = max(1, int(gap / 900))  # ~4 trips per hour
+                for i in range(n):
+                    t = last_dt + timedelta(seconds=(i + 1) * gap / (n + 1))
+                    await loop.run_in_executor(None, cr.execute, _TRIP_INSERT, _make_trip_row(t))
+                _trip_logger.info("Catch-up: inserted %d trips (gap %.0f min)", n, gap / 60)
+    except Exception as exc:
+        _trip_logger.warning("Catch-up failed: %s", exc)
+
+    # Steady-state: one synthetic trip every 10 minutes
+    while True:
+        await asyncio.sleep(600)
+        try:
+            now = datetime.now(timezone.utc).replace(tzinfo=None)
+            row = _make_trip_row(now - timedelta(seconds=random.randint(0, 120)))
+            loop = asyncio.get_running_loop()
+            await loop.run_in_executor(None, cr.execute, _TRIP_INSERT, row)
+            _trip_logger.info("Live trip: %s", row[0])
+        except Exception as exc:
+            _trip_logger.warning("Trip insert error: %s", exc)
+
+
+@app.on_event("startup")
+async def start_trip_generator() -> None:
+    asyncio.create_task(_trip_generator_loop())
 
 
 @app.get("/health", tags=["health"])

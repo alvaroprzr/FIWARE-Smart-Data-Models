@@ -41,7 +41,7 @@
         "label": "Station",
         "hide": 0,
         "datasource": "CrateDB",
-        "query": "SELECT DISTINCT station_id FROM etstation_status ORDER BY 1",
+        "query": "SELECT DISTINCT station_id FROM (SELECT station_id FROM etstation_status UNION ALL SELECT regexp_replace(entity_id, '^.*:', '') AS station_id FROM mtsmartmobilityhub.etstation_status) t ORDER BY 1",
         "refresh": 2,
         "multi": false,
         "includeAll": false,
@@ -69,7 +69,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT station_id, AVG(num_bikes_available) as media_bicis, AVG(num_docks_available) as media_plazas FROM etstation_status WHERE $__timeFilter(time) GROUP BY station_id ORDER BY media_bicis DESC"
+          "rawSql": "SELECT station_id, AVG(num_bikes_available) as media_bicis, AVG(num_docks_available) as media_plazas FROM (SELECT station_id, CAST(num_bikes_available AS DOUBLE) as num_bikes_available, CAST(num_docks_available AS DOUBLE) as num_docks_available FROM etstation_status WHERE $__timeFilter(time) UNION ALL SELECT regexp_replace(entity_id, '^.*:', '') AS station_id, CAST(num_bikes_available AS DOUBLE) as num_bikes_available, CAST(num_docks_available AS DOUBLE) as num_docks_available FROM mtsmartmobilityhub.etstation_status WHERE $__timeFilter(time_index)) t GROUP BY station_id ORDER BY media_bicis DESC"
         }
       ],
       "fieldConfig": {
@@ -189,7 +189,7 @@
         {
           "refId": "A",
           "format": "time_series",
-          "rawSql": "SELECT DATE_TRUNC('hour', time) as time, station_id, AVG(num_bikes_available) as media FROM etstation_status WHERE $__timeFilter(time) GROUP BY time, station_id ORDER BY time"
+          "rawSql": "SELECT time, station_id, AVG(num_bikes_available) as media FROM (SELECT DATE_TRUNC('hour', time) as time, station_id, CAST(num_bikes_available AS DOUBLE) as num_bikes_available FROM etstation_status WHERE $__timeFilter(time) UNION ALL SELECT DATE_TRUNC('hour', time_index) as time, regexp_replace(entity_id, '^.*:', '') AS station_id, CAST(num_bikes_available AS DOUBLE) as num_bikes_available FROM mtsmartmobilityhub.etstation_status WHERE $__timeFilter(time_index)) t GROUP BY time, station_id ORDER BY time"
         }
       ],
       "fieldConfig": {

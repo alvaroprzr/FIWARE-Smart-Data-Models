@@ -375,9 +375,12 @@
         <div class="chat-header flex items-center justify-between gap-2 border-b border-white/10 pb-3">
           <div class="chat-header-text">
             <p class="panel-title">Chat</p>
-            <h3 class="text-sm font-bold text-white">Asistente IA</h3>
+            <h3 class="text-sm font-bold text-white">Asistente BiciCoruña</h3>
           </div>
-          <button id="chat-toggle" class="flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-sm text-slate-200 transition hover:bg-white/10" title="Ocultar chat">✕</button>
+          <div class="flex items-center gap-1">
+            <button onclick="clearChat()" class="flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-base text-slate-300 transition hover:bg-white/10 hover:text-white" title="Nuevo chat">↺</button>
+            <button id="chat-toggle" class="flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-sm text-slate-200 transition hover:bg-white/10" title="Ocultar chat">✕</button>
+          </div>
         </div>
         <div class="chat-body flex min-h-0 flex-1 flex-col gap-2 pt-3">
           <div id="chat-history" class="scrollbar-thin min-h-0 flex-1 space-y-2 overflow-y-auto pr-1"></div>
@@ -533,11 +536,24 @@
 
 
 
+    function fitCitySelect() {
+      const sel = dom.citySelect;
+      const opt = sel.options[sel.selectedIndex];
+      if (!opt) return;
+      const ghost = document.createElement('span');
+      ghost.style.cssText = 'visibility:hidden;position:absolute;font:' + getComputedStyle(sel).font + ';white-space:nowrap';
+      ghost.textContent = opt.text;
+      document.body.appendChild(ghost);
+      sel.style.width = (ghost.offsetWidth + 28) + 'px';
+      document.body.removeChild(ghost);
+    }
+
     function bootstrapCities() {
       dom.citySelect.innerHTML = Object.entries(CITY_CONFIG)
         .map(([value, item]) => `<option value="${escapeHtml(value)}">${escapeHtml(item.label)}</option>`)
         .join('');
       dom.citySelect.value = appState.city;
+      fitCitySelect();
     }
 
     async function loadCity(city) {
@@ -563,6 +579,7 @@
 
     function attachEvents() {
       dom.citySelect.addEventListener('change', (event) => {
+        fitCitySelect();
         loadCity(event.target.value || 'acoruna');
       });
 
@@ -723,6 +740,17 @@
       setConnection(false, 'Sin conexión');
       dom.stationName.textContent = 'Error al inicializar la interfaz';
     });
+  </script>
+  <script>
+    function clearChat() {
+      var h = document.getElementById('chat-history');
+      if (!h) return;
+      h.innerHTML = '';
+      var d = document.createElement('div');
+      d.className = 'chat-message chat-assistant';
+      d.textContent = 'Puedo ayudarte con el estado de estaciones, la predicción a 30 y 60 minutos, el clima y las consultas operativas en A Coruña.';
+      h.appendChild(d);
+    }
   </script>
 </body>
 </html>
