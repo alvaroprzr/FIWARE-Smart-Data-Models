@@ -399,5 +399,5 @@ Consulta los siguientes documentos para entender la arquitectura, requisitos y m
 
 ---
 
-**Última actualización:** 2026-05-12  
+**Última actualización:** 2026-05-13  
 **Estado:** MVP (Minimum Viable Product) - Demostración funcional para Práctica 3
