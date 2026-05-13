@@ -113,6 +113,9 @@ Responsabilidades:
 - Query NGSI-LD multi-ciudad (filtros por ciudad y tipo de entidad).
 - ML serving (predicciones 30/60 min) basado en historico de CrateDB y/o features operacionales.
 - Orquestacion de tools/functions: consultar Orion, enriquecer prompt, invocar LLM local, postprocesar respuesta.
+- Creación idempotente de las 4 suscripciones Orion-LD en el evento de startup (las 3 de QuantumLeap + la de alertas hacia `/api/alerts/notify`).
+- Generador sintético de viajes en background: inserta ~1 `Trip` por cada ~10 minutos en `crate.trips` con catch-up al arrancar para rellenar el hueco desde el último viaje seedeado; sostiene el heatmap y la correlación clima–uso entre reseeds.
+- Entrega de alertas SSE: recibe notificaciones Orion en `/api/alerts/notify`, detecta transiciones `0 → ≥1` bicis y emite eventos a clientes conectados en `/api/alerts/stream`.
 
 ### 1.5 LM Studio + Gemma (LLM local)
 
@@ -172,9 +175,16 @@ Rol:
    - Cálculo sostenibilidad: totalKg = Σ(trip_count × avg_distance × 0.21).
    - Objetivo: max(100, totalKg × 1.45).
 
+**Coordinador `index.html` (fuera de los 4 módulos):**
+- Toggle Mapa / Grafana iFrame: botón "Ver Dashboard" que alterna entre el mapa Leaflet y el panel Grafana embebido (`<iframe id="grafana-view">`) pasando `var-station` como query param al cambiar de estación.
+- Alertas SSE: `startAlertStream()` abre un `EventSource` contra `/api/alerts/stream` y muestra un badge in-app cuando una estación favorita recupera disponibilidad (`availability_restored`).
+- Gestión de favoritos: añade/elimina estaciones favoritas vía `/api/alerts/favorite` (POST/DELETE) persistiendo por `client_id` en localStorage.
+- Buscador de estación: `<input list="station-suggestions">` conectado al mapa para seleccionar estación por nombre.
+- Refresh automático cada 30 s: llama a `mapModule.refreshStations()` y `updateChartsData()`.
+
 **Arquitectura:**
 - Módulos desacoplados que comparten estado via `appState` (Object exportado desde `utils.js`).
-- Coordinador mínimo en `index.html` que inicializa módulos, gestiona ciudad activa y ciclo de refresh.
+- Coordinador mínimo en `index.html` que inicializa módulos, gestiona ciudad activa, ciclo de refresh y features adicionales (iFrame, SSE, favoritos).
 - Sin IIFE ni inyección global: imports/exports ES6 estándar.
 
 Capacidades:
@@ -193,9 +203,17 @@ Rol:
 Rol:
 - Contenedor efimero (`restart: no`) que ejecuta `setup.sh` una sola vez al arrancar el stack.
 - Espera a que Orion-LD, IoT Agent y CrateDB esten healthy antes de ejecutarse.
-- Se encarga de: registrar el service group del IoT Agent, provisionar los 15 devices MQTT, crear las 4 suscripciones Orion-LD (station_status → QL, WeatherObserved → QL, Trip → QL, station_status → backend), y cargar datos de prueba (seed_current_data.py + seed_historical_data.py).
-- Es idempotente: si ya existe cualquier recurso devuelve 409 y continua.
-- Las suscripciones adicionales para alertas del backend (station_status → fastapi:8000/api/alerts/notify) se crean en el startup de FastAPI.
+- Se encarga de: registrar el service group del IoT Agent, provisionar los 15 devices MQTT, crear las 3 suscripciones de persistencia histórica en Orion-LD (station_status → QL, WeatherObserved → QL, Trip → QL), cargar datos de prueba (seed_current_data.py + seed_historical_data.py) y disparar el entrenamiento ML inicial (`POST /api/train`).
+- Es idempotente: si ya existe cualquier recurso devuelve 409 y continúa.
+- La 4ª suscripción para alertas del backend (station_status → fastapi-backend:8000/api/alerts/notify) la crea FastAPI en su evento de startup, junto con la recreación idempotente de las 3 anteriores.
+
+### 1.10 Servicio iot-simulator (simulador de sensores)
+
+Rol:
+- Contenedor persistente (`restart: unless-stopped`) que publica mensajes MQTT cada 30 segundos simulando los sensores de las 15 estaciones.
+- Lee el estado actual de las estaciones desde Orion-LD al arrancar y genera valores de disponibilidad realistas.
+- Depende de `mosquitto`, `orion-ld` y `setup` (espera a que el provisioning haya finalizado).
+- Publica en el topic `/bicicoruna/{STATION_ID}/attrs` con payload `{"num_bikes_available": N, "num_docks_available": M, "last_reported": T}`.
 
 ---
 
@@ -538,6 +556,8 @@ services:
       - LM_STUDIO_URL=http://host.docker.internal:1234/v1
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    volumes:
+      - ./backend/ml:/app/ml
     restart: unless-stopped
 
   grafana:
@@ -558,11 +578,58 @@ services:
       - GF_USERS_ALLOW_SIGN_UP=false
       - GF_SECURITY_ALLOW_EMBEDDING=true
       - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_NAME=Main Org.
       - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
     volumes:
       - grafana_data:/var/lib/grafana
       - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources
       - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards
+    restart: unless-stopped
+
+  setup:
+    image: python:3.11-slim
+    container_name: setup
+    depends_on:
+      orion-ld:
+        condition: service_healthy
+      iot-agent-mqtt:
+        condition: service_healthy
+      cratedb:
+        condition: service_healthy
+    networks:
+      - fiware_net
+    environment:
+      - ORION_URL=http://orion-ld:1026
+      - IOTAGENT_URL=http://iot-agent-mqtt:4041
+      - SERVICE=smartmobilityhub
+      - SERVICEPATH=/acoruna
+      - CRATEDB_HOST=cratedb
+      - CRATEDB_PORT=5432
+    volumes:
+      - ./:/app:ro
+    working_dir: /app
+    command: >
+      bash -c "apt-get update -qq && apt-get install -y --no-install-recommends curl > /dev/null && pip install --quiet requests psycopg2-binary && bash setup.sh"
+    restart: "no"
+
+  iot-simulator:
+    image: python:3.11-slim
+    container_name: iot-simulator
+    depends_on:
+      - mosquitto
+      - orion-ld
+      - setup
+    networks:
+      - fiware_net
+    environment:
+      - MQTT_HOST=mosquitto
+      - MQTT_PORT=1883
+      - ORION_URL=http://orion-ld:1026
+    volumes:
+      - ./iot:/app/iot:ro
+    working_dir: /app
+    command: >
+      bash -c "pip install --quiet paho-mqtt requests && python iot/simulator.py"
     restart: unless-stopped
 
   frontend:

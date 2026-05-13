@@ -566,7 +566,6 @@
           mapModule.refreshStations(),
         ]);
         renderStationSuggestions(appState.stations);
-        updateStations(appState.stations);
         // charts module will fetch analytics data itself
         updateChartsData();
         setConnection(true, `Conectado · ${cityLabel(city)}`);

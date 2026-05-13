@@ -53,11 +53,11 @@ El dashboard lee sus datos directamente del histórico almacenado en **CrateDB**
 * **Comportamiento:**
   Tabla ordenada descendentemente por número de viajes. Muestra el ID de la estación de origen, el total de viajes iniciados y la distancia media en kilómetros (redondeada al km más cercano).
 
-## 7. Correlación Pearson: clima vs demanda (Métrica numérica)
-* **Objetivo:** Cuantificar matemáticamente la relación entre las variables meteorológicas (viento, lluvia) y el número de viajes, calculando el **coeficiente de correlación de Pearson** (r) para cada par.
+## 7. Rutas más frecuentes — Top 10 origen → destino (Tabla)
+* **Objetivo:** Identificar los pares origen–destino con más viajes realizados, útiles para detectar corredores de movilidad recurrentes (commute, ocio, conexión con campus, etc.).
 * **Consulta SQL:**
-  Fórmula manual de Pearson usando sumas agregadas (CrateDB no soporta `CORR()`):
-  `r = (n·Σxy − Σx·Σy) / sqrt((n·Σx² − (Σx)²) · (n·Σy² − (Σy)²))`
-  Calculado con un CTE que une `etweatherobserved` con los viajes agrupados por hora.
+  `SELECT start_station_id AS origen, end_station_id AS destino, COUNT(*) AS viajes, ROUND(AVG(distance_meters) / 1000.0, 2) AS km_medio FROM trips WHERE $__timeFilter(started_at) GROUP BY start_station_id, end_station_id ORDER BY viajes DESC LIMIT 10`
 * **Comportamiento:**
-  Muestra dos valores numéricos: `r_viento_viajes` (correlación viento–demanda) y `r_lluvia_viajes` (correlación lluvia–demanda). Valores próximos a −1 indican que a más viento/lluvia hay menos viajes; próximos a 0 indican sin correlación; próximos a +1 indican relación directa.
+  Tabla ordenada descendentemente por número de viajes. Muestra el ID de la estación de origen, el ID de la estación de destino, el número total de viajes en ese trayecto y la distancia media (km).
+
+> **Nota:** El cálculo cuantitativo de correlación de Pearson (r) entre clima y demanda se sirve vía el endpoint backend `GET /api/weather/correlation` (no representado como panel Grafana en la versión actual del dashboard).

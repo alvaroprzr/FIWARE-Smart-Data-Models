@@ -44,7 +44,7 @@ Esta combinación (NGSI-LD + GBFS + OSLO + ML local + LLM local) constituye un m
 
 ## 3. Funcionalidades Principales
 
-La plataforma agrupa 15 funcionalidades en tres perfiles:
+La plataforma agrupa 14 funcionalidades en dos perfiles:
 
 **Para el Ciudadano (Usuario Final):**
 - Mapa interactivo multi-ciudad (F-01) con selector dinámico de región (F-02)
@@ -60,7 +60,7 @@ La plataforma agrupa 15 funcionalidades en tres perfiles:
 - Predicción de redistribución: estaciones en riesgo de vaciarse o llenarse (F-10)
 - Correlación clima–uso: impacto de viento y lluvia en demanda (F-11)
 
-F-06, F-07 y F-14 quedan como trabajo futuro: planificador topográfico, alertas push web e iFrame de Grafana embebido.
+F-06 queda como trabajo futuro: planificador de ruta con perfil topográfico. F-07 está implementado mediante alertas SSE en tiempo real con gestión de favoritos. F-14 está implementado con el panel Grafana embebido vía iFrame con botón de alternancia Mapa/Dashboard.
 
 ### Funcionalidades detalladas (resumen del PRD)
 
@@ -72,28 +72,18 @@ F-06, F-07 y F-14 quedan como trabajo futuro: planificador topográfico, alertas
 | F-04 | Predicción de disponibilidad a 30 y 60 min por estación | Ciudadano | Alta | ✅ |
 | F-05 | Asistente IA conversacional con function calling contra Orion | Ciudadano | Alta | ✅ |
 | F-06 | Planificador de ruta con perfil topográfico (GeoPandas/OSM) | Ciudadano | Media | 🔜 |
-| F-07 | Alertas push de disponibilidad en estaciones favoritas | Ciudadano | Media | 🔜 |
+| F-07 | Alertas push de disponibilidad en estaciones favoritas | Ciudadano | Media | ✅ |
 | F-08 | Dashboard histórico parametrizado por ciudad/estación en Grafana | Analista | Alta | ✅ |
 | F-09 | Heatmap de demanda por zonas de la ciudad | Analista | Alta | ✅ |
 | F-10 | Predicción de redistribución: estaciones en riesgo | Analista | Alta | ✅ |
 | F-11 | Correlación clima–uso: viento y precipitación vs demanda | Analista | Alta | ✅ |
 | F-12 | Panel de impacto ambiental: CO₂ ahorrado, km, viajes | Ciudadano/Analista | Media | ✅ |
 | F-13 | Interfaz web responsiva (desde 360 px) | Ciudadano | Alta | ✅ |
-| F-14 | Paneles Grafana embebidos vía iFrame en frontend | Ciudadano/Analista | Media | 🔜 |
+| F-14 | Paneles Grafana embebidos vía iFrame en frontend | Ciudadano/Analista | Media | ✅ |
 
 ---
 
-## 4. Resumen Técnico
-
-**Mapa y Disponibilidad:** El mapa carga en <3 segundos desde Orion-LD, codificado por color (verde: >5 bicis, amarillo: 1–5, rojo: 0). Predicciones de demanda (30–60 min) usando histórico + variables meteorológicas (viento, precipitación) con scikit-learn RandomForest, MAE <2 bicicletas.
-
-**Dashboards y Analítica:** Grafana local (stack `smartmobilityhub`) conectada a CrateDB, parametrizada por `$city` y `$station`. Heatmap de demanda por zonas, correlación clima–uso (windSpeed, precipitation), panel sostenibilidad (CO₂ ahorrado 0.21 kg/km, km totales, viajes). Datos actualizados desde QuantumLeap/CrateDB mediante SQL.
-
-**Asistencia IA:** LLM local (Gemma vía LM Studio) ejecuta function calling contra Orion-LD, respondiendo consultas en lenguaje natural (<5s latencia). Sin dependencias externas, privacidad garantizada.
-
----
-
-## 5. Diagrama de Arquitectura
+## 4. Diagrama de Arquitectura
 
 ```mermaid
 flowchart LR
@@ -137,7 +127,7 @@ flowchart LR
 
 ---
 
-## 6. Diagrama del Modelo de Datos
+## 5. Diagrama del Modelo de Datos
 
 ```mermaid
 graph TD
@@ -161,14 +151,6 @@ graph TD
   SI -->|refWeather| WEA
   DEV -->|refStation| SI
 ```
-
----
-
-## 7. Conclusiones Técnicas
-
-Smart Mobility Hub materializa una visión de **interoperabilidad abierta y escalabilidad multi-región** mediante el stack FIWARE nativo. Orion-LD (NGSI-LD) actúa como fuente única de verdad para contexto operativo en tiempo real. IoT Agent MQTT traduce sensores a entidades semánticas. QuantumLeap + CrateDB acumulan series temporales para ML e histórico. Grafana local expone dashboards parametrizados. FastAPI orquesta lógica de negocio, function calling para LLM y predicciones.
-
-El despliegue reproducible mediante Docker Compose en un único comando, sin configuración manual, asegura portabilidad a nuevas ciudades. La arquitectura es agnóstica a geografía pero adaptada a fenómenos locales (viento para A Coruña). Compliance con NGSI-LD, GBFS y OSLO garantiza futuras integraciones con sistemas intermodales y ecosistemas de datos abiertos urbanos.
 
 ---
 

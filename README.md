@@ -199,9 +199,9 @@ El frontend utiliza una **arquitectura modularizada con 4 módulos ES6 independi
 | Módulo | Responsabilidad | Tamaño |
 |--------|-----------------|--------|
 | `js/utils.js` | Estado compartido (`appState`), configuración de ciudades, funciones utilitarias | 4.5 KB |
-| `js/map.js` | Mapa Leaflet, carga de estaciones, marcadores, heatmap de viajes, predicciones | 13 KB |
+| `js/map.js` | Mapa Leaflet, carga de estaciones, marcadores con popup, sidebar de estación, predicciones | 11 KB |
 | `js/chat.js` | Panel de chat, mensajería con LLM backend vía `/api/chat` | 2.1 KB |
-| `js/charts.js` | Gráfico doughnut de CO₂ ahorrado con plugin de etiqueta central | 3.0 KB |
+| `js/charts.js` | Gráfico doughnut de CO₂ ahorrado con plugin de etiqueta central | 3.4 KB |
 
 ### Flujo de inicialización
 
@@ -224,7 +224,7 @@ El frontend utiliza una **arquitectura modularizada con 4 módulos ES6 independi
   - `GET /api/stations/{id}/forecast`
   - `GET /api/weather/trips/heatmap?city={city}`
   - `POST /api/chat` (body: `{city, message}`)
-- ✅ **Ciclo de refresco**: 30 segundos para actualizar statuses y heatmap automáticamente
+- ✅ **Ciclo de refresco**: 30 segundos para actualizar statuses y métricas CO₂ automáticamente
 - ✅ **Manejo de errores**: try/catch en todas las peticiones, feedback de conexión online/offline
 
 ---
@@ -246,7 +246,7 @@ El frontend utiliza una **arquitectura modularizada con 4 módulos ES6 independi
 docker compose logs setup
 
 # Re-ejecutar solo el servicio setup
-docker compose run --rm setup bash -c "pip install --quiet requests psycopg2-binary && bash setup.sh"
+docker compose run --rm setup bash -c "apt-get update -qq && apt-get install -y --no-install-recommends curl > /dev/null && pip install --quiet requests psycopg2-binary && bash setup.sh"
 ```
 
 ### Problema: Servicios no healthy después de 2 minutos
@@ -349,21 +349,17 @@ El backend incluye una suite completa de tests con pytest-asyncio que valida tod
 Desde el directorio raíz del proyecto:
 
 ```bash
-# Ejecutar dentro del contenedor (no requiere entorno local)
-docker compose exec fastapi-backend bash -c "cd /app && pip install pytest pytest-asyncio httpx && pytest ../tests -v"
+# Primera vez: crear y activar el entorno virtual
+python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt
 
-# O localmente con un entorno virtual:
-python3 -m venv .venv && source .venv/bin/activate
-cd backend && pip install -r requirements.txt
-
-# Ejecutar tests con verbose output
-pytest ../tests -v
+# Ejecutar todos los tests
+PYTHONPATH=backend pytest tests/ -v
 
 # Ejecutar tests con short traceback (más legible)
-pytest ../tests -v --tb=short
+PYTHONPATH=backend pytest tests/ -v --tb=short
 
 # Ejecutar un test específico
-pytest ../tests/test_api.py::TestStations::test_get_stations -v
+PYTHONPATH=backend pytest tests/test_api.py::TestStations::test_get_stations -v
 ```
 
 ### Cobertura de tests
@@ -396,8 +392,10 @@ Consulta los siguientes documentos para entender la arquitectura, requisitos y m
 - **[data_model.md](data_model.md)** — Modelo NGSI-LD completo (entidades, atributos, relaciones, contexts)
 - **[architecture.md](architecture.md)** — Arquitectura técnica, flujos de datos, docker-compose, configuraciones
 - **[APPLICATION.md](APPLICATION.md)** — Guía de uso de la interfaz de usuario
+- **[INFORME_VERIFICACION.md](INFORME_VERIFICACION.md)** — Estado verificado del sistema: entidades, CrateDB, suscripciones y pipeline IoT
+- **[graficas_info.md](graficas_info.md)** — Descripción de los paneles del dashboard Grafana y sus consultas SQL
 
 ---
 
-**Última actualización:** 2026-05-13  
+**Última actualización:** 2026-05-12  
 **Estado:** MVP (Minimum Viable Product) - Demostración funcional para Práctica 3

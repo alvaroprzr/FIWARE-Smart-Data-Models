@@ -1,7 +1,7 @@
 # PRD.md — Smart Mobility Hub · BiciCoruña Smart
 ## Product Requirements Document
 **Versión:** 2.0 (Final)
-**Fecha:** 2025
+**Fecha:** 2026
 **Asignatura:** Gestión de Datos en Entornos Inteligentes — Práctica 3
 **Escenario:** Gestión de bicicletas compartidas en la ciudad (Escenario 6)
 **Ciudad piloto:** A Coruña, Galicia
@@ -263,9 +263,9 @@ Device             ──refStation──────► GBFSStation
 | Atributo | Entidad | Tipo | Canal de actualización |
 |----------|---------|------|------------------------|
 | `location`, `address`, `capacity` | `GBFSStation` | Estático | Carga inicial / script de provisioning |
-| `numBikesAvailable`, `numDocksAvailable`, `lastReported` | `GBFSStationStatus` | **Dinámico** | IoT Agent MQTT → Orion CB |
+| `num_bikes_available`, `num_docks_available`, `last_reported` | `GBFSStationStatus` | **Dinámico** | IoT Agent MQTT → Orion CB |
 | `bike_id`, `is_reserved`, `lat`, `lon` | `GBFSFreeBikeStatus` | **Dinámico** | IoT Agent MQTT → Orion CB |
-| `startStation`, `endStation`, `duration`, `distance` | `Trip` | **Dinámico** | Backend FastAPI → Orion CB |
+| `refOrigin`, `refDestination`, `departureTime`, `arrivalTime` | `Trip` | **Dinámico** | Backend FastAPI → Orion CB |
 | `windSpeed`, `precipitation`, `temperature` | `WeatherObserved` | **Dinámico** | Servicio externo / simulador |
 | `deviceState`, `batteryLevel` | `Device` | Semi-dinámico | IoT Agent MQTT → Orion CB |
 | `operatorName`, `timezone`, `feedContactEmail` | `GBFSSystemInformation` | Estático | Configuración por ciudad |

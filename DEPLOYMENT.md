@@ -2,9 +2,9 @@
 
 ## 🚀 Estado Actual
 ✅ **Stack FIWARE completamente operacional**
-✅ **Modelos ML entrenados y en producción (MAE: 2.13 bikes)**
+✅ **Modelos ML entrenados y en producción (MAE t+30: 2.13 bikes, MAE t+60: 1.88 bikes)**
 ✅ **Suscripciones activas: Orion → QuantumLeap → CrateDB**
-✅ **130K+ registros históricos en CrateDB**
+✅ **~14.600 registros históricos en CrateDB (seed 10 días)**
 ✅ **Tests: 7/7 passing**
 
 ---
@@ -19,11 +19,11 @@
 ### API Backend
 - **URL**: http://localhost:8000
 - **Docs**: http://localhost:8000/docs
-- **Endpoints**: /health, /api/stations, /api/forecast, /api/chat, /api/weather, /api/heatmap
+- **Endpoints principales**: `/health`, `/api/stations`, `/api/stations/{id}/status`, `/api/stations/{id}/forecast`, `/api/chat`, `/api/weather`, `/api/weather/correlation`, `/api/weather/trips/heatmap`, `/api/alerts/favorite` (POST/DELETE), `/api/alerts/favorites`, `/api/alerts/stream` (SSE), `/api/alerts/notify`, `/api/train`
 
 ### Grafana (Dashboards)
-- **URL**: http://localhost:3000
-- **Usuario/Contraseña**: admin / admin
+- **URL**: http://localhost:8081/grafana/
+- **Acceso**: anónimo (sin contraseña)
 - **Datasource**: CrateDB provisionado
 
 ### Orion-LD (Context Broker)
@@ -34,7 +34,7 @@
 - **Puerto**: 5432 (PostgreSQL)
 - **Usuario**: crate
 - **Base de datos**: crate
-- **Tablas**: etstation_status (130K+), etweatherobserved (2K+)
+- **Tablas**: etstation_status (~14.400), etweatherobserved (264), trips (200+)
 
 ### IoT Agent MQTT
 - **URL**: http://localhost:4041
@@ -46,9 +46,8 @@
 
 ### Entrenar modelos
 ```bash
-PYTHONPATH=backend .venv/bin/python3 backend/ml/train.py
-docker cp backend/ml/model_*.joblib fastapi-backend:/app/ml/
-docker restart fastapi-backend
+curl -X POST http://localhost:8000/api/train
+# Respuesta esperada: {"status":"ok","models":["model_30","model_60"],"model_used":"random_forest"}
 ```
 
 ### Seedear datos
@@ -104,9 +103,9 @@ curl "http://localhost:8000/api/weather/trips/heatmap" | jq '. | length'
 
 | Métrica | Valor |
 |---------|-------|
-| MAE t+30min | 2.134 ✓ |
+| MAE t+30min | 2.134 (PRD objetivo: <2) |
 | MAE t+60min | 1.875 ✓ |
 | Tests | 7/7 ✓ |
-| Filas CrateDB | 130K+ |
-| Suscripciones | 3 activas |
+| Filas CrateDB | ~14.600 seed + live |
+| Suscripciones | 4 activas |
 
