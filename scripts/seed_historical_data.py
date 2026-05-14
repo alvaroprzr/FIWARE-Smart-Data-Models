@@ -41,6 +41,7 @@ RNG = random.Random(42)           # station_status y trips
 WEATHER_RNG = random.Random(42)   # weather — instancia independiente para poder regenerar por separado
 
 EXPECTED_WEATHER_ROWS = 264  # 11 días × 24 horas
+DATA_FRESHNESS_HOURS = 1     # si el dato más reciente tiene más de 1h, forzar reseed
 
 
 def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -231,27 +232,61 @@ def insert_in_batches(conn: Any, query: str, rows: List[Tuple[Any, ...]], batch_
     return inserted
 
 
-def historical_data_already_loaded(cursor: Any) -> bool:
-    """Return True when station_status and trips are already loaded.
+def _data_is_stale(cursor: Any, table: str, time_col: str) -> bool:
+    """Return True if the most recent row in *table* is older than DATA_FRESHNESS_HOURS.
 
-    Weather is checked separately by weather_needs_refresh() so it can be
-    refreshed independently without requiring a full reset.
+    psycopg2+CrateDB returns TIMESTAMP columns as timezone-aware datetime objects.
     """
-    for table_name in ("etstation_status", "trips"):
-        cursor.execute(f"SELECT COUNT(*) FROM {table_name}")
-        row_count = cursor.fetchone()[0]
-        if row_count > 0:
-            print(f"Datos hist\u00f3ricos ya presentes en {table_name} ({row_count} filas). Se omite el seed.")
-            return True
+    cursor.execute(f"SELECT MAX({time_col}) FROM {table}")
+    row = cursor.fetchone()
+    if row is None or row[0] is None:
+        return True
+    max_ts = row[0]
+    # Normalise to UTC-aware datetime regardless of what psycopg2 adapter returns
+    if isinstance(max_ts, datetime):
+        if max_ts.tzinfo is None:
+            max_ts = max_ts.replace(tzinfo=timezone.utc)
+    else:
+        # Fallback: treat as milliseconds since epoch (CrateDB HTTP API style)
+        max_ts = datetime.fromtimestamp(float(max_ts) / 1000, tz=timezone.utc)
+    age_hours = (datetime.now(tz=timezone.utc) - max_ts).total_seconds() / 3600
+    if age_hours > DATA_FRESHNESS_HOURS:
+        print(f"Datos en {table} caducados (\u00faltimo registro hace {age_hours:.1f}h). Se forzar\u00e1 reseed.")
+        return True
     return False
 
 
+def historical_data_already_loaded(cursor: Any) -> bool:
+    """Return True when station_status and trips are already loaded AND fresh.
+
+    If data exists but is older than DATA_FRESHNESS_HOURS (stack reiniciado),
+    purge all tables and return False to trigger a full reseed.
+    Weather is checked separately by weather_needs_refresh().
+    """
+    cursor.execute("SELECT COUNT(*) FROM etstation_status")
+    row_count = cursor.fetchone()[0]
+    if row_count == 0:
+        return False
+
+    if _data_is_stale(cursor, "etstation_status", "time"):
+        print("Purgando datos obsoletos para forzar reseed completo...")
+        for t in ("etstation_status", "etweatherobserved", "trips"):
+            cursor.execute(f"DELETE FROM {t}")
+        cursor.connection.commit()
+        return False
+
+    print(f"Datos hist\u00f3ricos recientes en etstation_status ({row_count} filas). Se omite el seed.")
+    return True
+
+
 def weather_needs_refresh(cursor: Any) -> bool:
-    """Return True if weather data is missing or has fewer rows than expected."""
+    """Return True if weather data is missing, incomplete, or stale."""
     cursor.execute("SELECT COUNT(*) FROM etweatherobserved")
     count = cursor.fetchone()[0]
     if count < EXPECTED_WEATHER_ROWS:
         print(f"Weather incompleto ({count}/{EXPECTED_WEATHER_ROWS} filas). Se regenera.")
+        return True
+    if _data_is_stale(cursor, "etweatherobserved", "time"):
         return True
     return False
 
